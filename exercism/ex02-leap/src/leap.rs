@@ -1,14 +1,10 @@
 pub fn is_leap(year: u64) -> bool {
-    if year % 400 == 0 {
-        return true;
+    match year {
+        year if year % 400 == 0 => true,
+        year if year % 100 == 0 => false,
+        year if year % 4 == 0 => true,
+        _ => false,
     }
-    if year % 100 == 0 {
-        return false;
-    }
-    if year % 4 == 0 {
-        return true;
-    }
-    false
 }
 
 #[test]
