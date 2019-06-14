@@ -6,7 +6,7 @@ pub fn primes_up_to(limit: i32) -> Vec<i32> {
         ps.push(p);
         xs.retain(|&x| x % p != 0);
         if p * p > limit {
-            ps.append(&mut xs);
+            ps.extend_from_slice(&xs);
             break;
         }
     }
