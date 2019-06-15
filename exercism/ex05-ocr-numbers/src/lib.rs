@@ -18,9 +18,9 @@ pub fn convert(input: &str) -> Result<String, Error> {
     }
 
     let mut ret = Vec::<String>::new();
-    for raw in raws.chunks(4) {
-        ret.push(raw[0].char_indices().step_by(3).map(|(i, _)| 
-            ocr((&raw[0][i..i + 3], &raw[1][i..i + 3], &raw[2][i..i + 3]))
+    for chunk in raws.chunks(4) {
+        ret.push(chunk[0].char_indices().step_by(3).map(|(i, _)| 
+            ocr((&chunk[0][i..i + 3], &chunk[1][i..i + 3], &chunk[2][i..i + 3]))
         ).collect::<String>());
     }
     Ok(ret.join(","))
