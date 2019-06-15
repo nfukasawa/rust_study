@@ -13,8 +13,8 @@ pub fn convert(input: &str) -> Result<String, Error> {
     if raws.len() % 4 != 0 {
         return Err(Error::InvalidRowCount(raws.len()));
     }
-    if let Some(l) = raws.iter().find(|&l| l.len() % 3 != 0) {
-        return Err(Error::InvalidColumnCount(l.len()));
+    if let Some(raw) = raws.iter().find(|&raw| raw.len() % 3 != 0) {
+        return Err(Error::InvalidColumnCount(raw.len()));
     }
 
     let mut ret = Vec::<String>::new();
