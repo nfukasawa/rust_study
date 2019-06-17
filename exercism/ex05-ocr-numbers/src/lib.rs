@@ -5,17 +5,17 @@ pub enum Error {
 }
 
 pub fn convert(input: &str) -> Result<String, Error> {
-    let raws: Vec<&str> = input.split('\n').collect();
+    let rows: Vec<&str> = input.split('\n').collect();
 
-    if raws.len() % 4 != 0 {
-        return Err(Error::InvalidRowCount(raws.len()));
+    if rows.len() % 4 != 0 {
+        return Err(Error::InvalidRowCount(rows.len()));
     }
-    if let Some(raw) = raws.iter().find(|&raw| raw.len() % 3 != 0) {
-        return Err(Error::InvalidColumnCount(raw.len()));
+    if let Some(row) = rows.iter().find(|&row| row.len() % 3 != 0) {
+        return Err(Error::InvalidColumnCount(row.len()));
     }
 
     let mut ret = Vec::<String>::new();
-    for chunk in raws.chunks(4) {
+    for chunk in rows.chunks(4) {
         ret.push(chunk[0].char_indices().step_by(3).map(|(i, _)| 
             ocr((&chunk[0][i..i + 3], &chunk[1][i..i + 3], &chunk[2][i..i + 3]))
         ).collect::<String>());
@@ -24,8 +24,8 @@ pub fn convert(input: &str) -> Result<String, Error> {
 }
 
 #[rustfmt::skip]
-fn ocr(raws: (&str, &str, &str)) -> char {
-    match raws {
+fn ocr(rows: (&str, &str, &str)) -> char {
+    match rows {
         ( " _ ",
           "| |",
           "|_|" ) => '0',
