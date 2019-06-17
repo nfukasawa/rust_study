@@ -1,5 +1,5 @@
 pub fn annotate(minefield: &[&str]) -> Vec<String> {
-    Board::new(minefield).annotate()
+    Board::new(minefield).annotated()
 }
 
 struct Board {
@@ -12,7 +12,7 @@ impl Board {
         Board { cells: init_cells(&cells) }
     }
 
-    fn annotate(&self) -> Vec<String> {
+    fn annotated(&self) -> Vec<String> {
         self.cells.iter().map(|row| row.iter().map(|cell| cell.to_char()).collect()).collect()
     }
 }
