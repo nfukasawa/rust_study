@@ -54,11 +54,11 @@ impl<T> SimpleLinkedList<T> {
         match self.head.as_mut() {
             Some(node) => {
                 self.len -= 1;
-                if self.len != 0 {
-                    node.pop_back().map(|node| node.data)
-                } else {
-                    self.head.take().map(|node| node.data)
+                match self.len {
+                    0 => self.head.take(),
+                    _ => node.pop_back(),
                 }
+                .map(|node| node.data)
             }
             None => None,
         }
