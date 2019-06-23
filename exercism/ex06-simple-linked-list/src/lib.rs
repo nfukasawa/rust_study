@@ -57,10 +57,10 @@ impl<T> SimpleLinkedList<T> {
 impl<T: Clone> SimpleLinkedList<T> {
     pub fn rev(&self) -> SimpleLinkedList<T> {
         let mut list = SimpleLinkedList::new();
-        let mut cur = self.head.as_ref().map(|node| node);
+        let mut cur = self.head.as_ref();
         while let Some(node) = cur {
             list.push(node.data.clone());
-            cur = node.next.as_ref().map(|node| node);
+            cur = node.next.as_ref();
         }
         list
     }
