@@ -42,15 +42,30 @@ impl<T> SimpleLinkedList<T> {
     }
 
     pub fn push_back(&mut self, _elm: T) {
-        unimplemented!()
+        self.len += 1;
+        let tail = Some(Box::new(Node::new(_elm, None)));
+        match self.head.as_mut() {
+            Some(node) => node.push_back(tail),
+            None => self.head = tail,
+        };
     }
 
     pub fn pop_back(&mut self) -> Option<T> {
-        unimplemented!()
+        match self.head.as_mut() {
+            Some(node) => {
+                self.len -= 1;
+                if self.len != 0 {
+                    node.pop_back().map(|node| node.data)
+                } else {
+                    self.head.take().map(|node| node.data)
+                }
+            }
+            None => None,
+        }
     }
 
-    pub fn peek_back(&mut self, _elm: T) {
-        unimplemented!()
+    pub fn peek_back(&self) -> Option<&T> {
+        self.head.as_ref().map(|node| node.peek_back())
     }
 }
 
@@ -59,7 +74,7 @@ impl<T: Clone> SimpleLinkedList<T> {
         let mut list = SimpleLinkedList::new();
         let mut cur = self.head.as_ref();
         while let Some(node) = cur {
-            list.push(node.data.clone());
+            list.push_front(node.data.clone());
             cur = node.next.as_ref();
         }
         list
@@ -70,7 +85,7 @@ impl<'a, T: Clone> From<&'a [T]> for SimpleLinkedList<T> {
     fn from(_elms: &[T]) -> Self {
         let mut list = SimpleLinkedList::new();
         for elm in _elms {
-            list.push(elm.clone());
+            list.push_front(elm.clone());
         }
         list
     }
@@ -99,6 +114,40 @@ impl<T> Node<T> {
         Node {
             data: elm,
             next: next,
+        }
+    }
+
+    fn push_back(&mut self, tail: Option<Box<Node<T>>>) {
+        match self.next.as_mut() {
+            Some(node) => node.push_back(tail),
+            None => self.next = tail,
+        }
+    }
+
+    fn pop_back(&mut self) -> Option<Box<Node<T>>> {
+        match self.next.as_mut() {
+            Some(node) => {
+                if node.is_tail() {
+                    self.next.take()
+                } else {
+                    node.pop_back()
+                }
+            }
+            None => None,
+        }
+    }
+
+    fn peek_back(&self) -> &T {
+        match self.next.as_ref() {
+            Some(node) => node.peek_back(),
+            None => &self.data,
+        }
+    }
+
+    fn is_tail(&self) -> bool {
+        match self.next {
+            None => true,
+            _ => false,
         }
     }
 }

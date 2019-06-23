@@ -16,6 +16,15 @@ fn test_push_increments_length() {
 }
 
 #[test]
+fn test_push_back_increments_length() {
+    let mut list: SimpleLinkedList<u32> = SimpleLinkedList::new();
+    list.push_back(1);
+    assert_eq!(list.len(), 1, "list's length must be 1");
+    list.push_back(2);
+    assert_eq!(list.len(), 2, "list's length must be 2");
+}
+
+#[test]
 fn test_pop_decrements_length() {
     let mut list: SimpleLinkedList<u32> = SimpleLinkedList::new();
     list.push(1);
@@ -23,6 +32,17 @@ fn test_pop_decrements_length() {
     list.pop();
     assert_eq!(list.len(), 1, "list's length must be 1");
     list.pop();
+    assert_eq!(list.len(), 0, "list's length must be 0");
+}
+
+#[test]
+fn test_pop_back_decrements_length() {
+    let mut list: SimpleLinkedList<u32> = SimpleLinkedList::new();
+    list.push_back(1);
+    list.push_back(2);
+    list.pop_back();
+    assert_eq!(list.len(), 1, "list's length must be 1");
+    list.pop_back();
     assert_eq!(list.len(), 0, "list's length must be 0");
 }
 
@@ -37,12 +57,39 @@ fn test_pop_returns_last_added_element() {
 }
 
 #[test]
+fn test_pop_back_returns_last_added_element() {
+    let mut list: SimpleLinkedList<u32> = SimpleLinkedList::new();
+    list.push_back(1);
+    list.push_back(2);
+    assert_eq!(list.pop_back(), Some(2), "Element must be 2");
+    assert_eq!(list.pop_back(), Some(1), "Element must be 1");
+    assert_eq!(
+        list.pop_back(),
+        None,
+        "No element should be contained in list"
+    );
+}
+
+#[test]
 fn test_peek_returns_head_element() {
     let mut list: SimpleLinkedList<u32> = SimpleLinkedList::new();
     assert_eq!(list.peek(), None, "No element should be contained in list");
     list.push(2);
     assert_eq!(list.peek(), Some(&2), "Element must be 2");
     assert_eq!(list.peek(), Some(&2), "Element must be still 2");
+}
+
+#[test]
+fn test_peek_back_returns_head_element() {
+    let mut list: SimpleLinkedList<u32> = SimpleLinkedList::new();
+    assert_eq!(
+        list.peek_back(),
+        None,
+        "No element should be contained in list"
+    );
+    list.push_back(2);
+    assert_eq!(list.peek_back(), Some(&2), "Element must be 2");
+    assert_eq!(list.peek_back(), Some(&2), "Element must be still 2");
 }
 
 #[test]
