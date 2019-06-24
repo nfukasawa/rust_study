@@ -1,15 +1,17 @@
 pub struct SimpleLinkedList<T> {
     head: Option<Box<Node<T>>>,
-    len: usize,
 }
 
 impl<T> SimpleLinkedList<T> {
     pub fn new() -> Self {
-        SimpleLinkedList { head: None, len: 0 }
+        SimpleLinkedList { head: None }
     }
 
     pub fn len(&self) -> usize {
-        self.len
+        match self.head.as_ref() {
+            Some(node) => node.count(1),
+            None => 0,
+        }
     }
 
     pub fn push(&mut self, _elm: T) {
@@ -25,13 +27,11 @@ impl<T> SimpleLinkedList<T> {
     }
 
     pub fn push_front(&mut self, _elm: T) {
-        self.len += 1;
         self.head = Some(Box::new(Node::new(_elm, self.head.take())));
     }
 
     pub fn pop_front(&mut self) -> Option<T> {
         self.head.take().map(|node| {
-            self.len -= 1;
             self.head = node.next;
             node.data
         })
@@ -42,7 +42,6 @@ impl<T> SimpleLinkedList<T> {
     }
 
     pub fn push_back(&mut self, _elm: T) {
-        self.len += 1;
         let tail = Some(Box::new(Node::new(_elm, None)));
         match self.head.as_mut() {
             Some(node) => node.push_back(tail),
@@ -52,14 +51,11 @@ impl<T> SimpleLinkedList<T> {
 
     pub fn pop_back(&mut self) -> Option<T> {
         match self.head.as_mut() {
-            Some(node) => {
-                self.len -= 1;
-                match self.len {
-                    0 => self.head.take(),
-                    _ => node.pop_back(),
-                }
-                .map(|node| node.data)
+            Some(node) => match node.next {
+                None => self.head.take(),
+                _ => node.pop_back(),
             }
+            .map(|node| node.data),
             None => None,
         }
     }
@@ -117,6 +113,13 @@ impl<T> Node<T> {
         }
     }
 
+    fn count(&self, c: usize) -> usize {
+        match self.next.as_ref() {
+            Some(node) => node.count(c + 1),
+            None => c,
+        }
+    }
+
     fn push_back(&mut self, tail: Option<Box<Node<T>>>) {
         match self.next.as_mut() {
             Some(node) => node.push_back(tail),
@@ -126,13 +129,10 @@ impl<T> Node<T> {
 
     fn pop_back(&mut self) -> Option<Box<Node<T>>> {
         match self.next.as_mut() {
-            Some(node) => {
-                if node.is_tail() {
-                    self.next.take()
-                } else {
-                    node.pop_back()
-                }
-            }
+            Some(node) => match node.next {
+                None => self.next.take(),
+                _ => node.pop_back(),
+            },
             None => None,
         }
     }
@@ -141,13 +141,6 @@ impl<T> Node<T> {
         match self.next.as_ref() {
             Some(node) => node.peek_back(),
             None => &self.data,
-        }
-    }
-
-    fn is_tail(&self) -> bool {
-        match self.next {
-            None => true,
-            _ => false,
         }
     }
 }
