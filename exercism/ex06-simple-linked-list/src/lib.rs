@@ -8,10 +8,13 @@ impl<T> SimpleLinkedList<T> {
     }
 
     pub fn len(&self) -> usize {
-        match self.head.as_ref() {
-            Some(node) => node.count(1),
-            None => 0,
+        let mut cur = self.head.as_ref();
+        let mut c = 0;
+        while let Some(node) = cur {
+            c += 1;
+            cur = node.next.as_ref();
         }
+        c
     }
 
     pub fn push(&mut self, _elm: T) {
@@ -43,25 +46,71 @@ impl<T> SimpleLinkedList<T> {
 
     pub fn push_back(&mut self, _elm: T) {
         let tail = Some(Box::new(Node::new(_elm, None)));
-        match self.head.as_mut() {
-            Some(node) => node.push_back(tail),
-            None => self.head = tail,
-        };
+        let mut cur = self.head.as_mut();
+        while let Some(node) = cur {
+            match node.next {
+                None => {
+                    node.next = tail;
+                    return;
+                }
+                _ => (),
+            }
+            cur = node.next.as_mut();
+        }
+        self.head = tail;
     }
 
     pub fn pop_back(&mut self) -> Option<T> {
-        match self.head.as_mut() {
-            Some(node) => match node.next {
-                None => self.head.take(),
-                _ => node.pop_back(),
+        let mut cur = self.head.as_mut();
+        while let Some(node) = cur {
+            match node.next.as_ref() {
+                Some(next_node) => match next_node.next {
+                    None => {
+                        return Some(node.next.take().unwrap().data);
+                    }
+                    _ => (),
+                },
+                None => {
+                    return Some(self.head.take().unwrap().data);
+                }
             }
-            .map(|node| node.data),
-            None => None,
+            cur = node.next.as_mut();
         }
+        None
     }
 
+    /*
+    pub fn pop_back2(&mut self) -> Option<T> {
+        let mut cur = self.head.as_mut();
+        while let Some(node) = cur {
+            if let Some(poped) = match node.next.as_ref() {
+                Some(next_node) => match next_node.next {
+                    None => node.next.take(),
+                    _ => None,
+                },
+                None => self.head.take(), // cannot borrow `self.head` as mutable more than once at a time
+            } {
+                return Some(poped.data);
+            }
+
+            cur = node.next.as_mut();
+        }
+        None
+    }
+    */
+
     pub fn peek_back(&self) -> Option<&T> {
-        self.head.as_ref().map(|node| node.peek_back())
+        let mut cur = self.head.as_ref();
+        while let Some(node) = cur {
+            match node.next {
+                None => {
+                    return Some(&node.data);
+                }
+                _ => (),
+            }
+            cur = node.next.as_ref();
+        }
+        None
     }
 }
 
@@ -110,37 +159,6 @@ impl<T> Node<T> {
         Node {
             data: elm,
             next: next,
-        }
-    }
-
-    fn count(&self, c: usize) -> usize {
-        match self.next.as_ref() {
-            Some(node) => node.count(c + 1),
-            None => c,
-        }
-    }
-
-    fn push_back(&mut self, tail: Option<Box<Node<T>>>) {
-        match self.next.as_mut() {
-            Some(node) => node.push_back(tail),
-            None => self.next = tail,
-        }
-    }
-
-    fn pop_back(&mut self) -> Option<Box<Node<T>>> {
-        match self.next.as_mut() {
-            Some(node) => match node.next {
-                None => self.next.take(),
-                _ => node.pop_back(),
-            },
-            None => None,
-        }
-    }
-
-    fn peek_back(&self) -> &T {
-        match self.next.as_ref() {
-            Some(node) => node.peek_back(),
-            None => &self.data,
         }
     }
 }
