@@ -41,7 +41,10 @@ impl<T> SimpleLinkedList<T> {
     }
 
     pub fn peek_front(&self) -> Option<&T> {
-        self.head.as_ref().map(|node| &node.data)
+        match &self.head {
+            Some(node) => Some(&node.data),
+            None => None,
+        }
     }
 
     pub fn push_back(&mut self, _elm: T) {
@@ -57,7 +60,7 @@ impl<T> SimpleLinkedList<T> {
     }
 
     fn pop_back_opt(&mut self) -> Option<Box<Node<T>>> {
-        if let Some(head) = self.head.as_ref() {
+        if let Some(head) = &self.head {
             if head.is_tail() {
                 return self.head.take();
             }
@@ -141,7 +144,7 @@ impl<T> Node<T> {
     }
 
     fn next_is_tail(&self) -> bool {
-        match self.next.as_ref() {
+        match &self.next {
             None => false,
             Some(node) => node.is_tail(),
         }
