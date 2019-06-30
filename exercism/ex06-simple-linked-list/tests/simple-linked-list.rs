@@ -80,7 +80,7 @@ fn test_peek_returns_head_element() {
 }
 
 #[test]
-fn test_peek_back_returns_head_element() {
+fn test_peek_back_returns_tail_element() {
     let mut list: SimpleLinkedList<u32> = SimpleLinkedList::new();
     assert_eq!(
         list.peek_back(),
