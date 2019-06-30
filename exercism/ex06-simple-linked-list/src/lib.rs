@@ -8,11 +8,11 @@ impl<T> SimpleLinkedList<T> {
     }
 
     pub fn len(&self) -> usize {
-        let mut cur = self.head.as_ref();
         let mut c = 0;
+        let mut cur = &self.head;
         while let Some(node) = cur {
             c += 1;
-            cur = node.next.as_ref();
+            cur = &node.next;
         }
         c
     }
@@ -45,16 +45,11 @@ impl<T> SimpleLinkedList<T> {
     }
 
     pub fn push_back(&mut self, _elm: T) {
-        let tail = Some(Box::new(Node::new(_elm, None)));
-        let mut cur = self.head.as_mut();
+        let mut cur = &mut self.head;
         while let Some(node) = cur {
-            if node.is_tail() {
-                node.next = tail;
-                return;
-            }
-            cur = node.next.as_mut();
+            cur = &mut node.next;
         }
-        self.head = tail;
+        cur.replace(Box::new(Node::new(_elm, None)));
     }
 
     pub fn pop_back(&mut self) -> Option<T> {
@@ -68,23 +63,23 @@ impl<T> SimpleLinkedList<T> {
             }
         }
 
-        let mut cur = self.head.as_mut();
+        let mut cur = &mut self.head;
         while let Some(node) = cur {
             if node.next_is_tail() {
                 return node.next.take();
             }
-            cur = node.next.as_mut();
+            cur = &mut node.next;
         }
         None
     }
 
     pub fn peek_back(&self) -> Option<&T> {
-        let mut cur = self.head.as_ref();
+        let mut cur = &self.head;
         while let Some(node) = cur {
             if node.is_tail() {
                 return Some(&node.data);
             }
-            cur = node.next.as_ref();
+            cur = &node.next;
         }
         None
     }
@@ -93,10 +88,10 @@ impl<T> SimpleLinkedList<T> {
 impl<T: Clone> SimpleLinkedList<T> {
     pub fn rev(&self) -> SimpleLinkedList<T> {
         let mut list = SimpleLinkedList::new();
-        let mut cur = self.head.as_ref();
+        let mut cur = &self.head;
         while let Some(node) = cur {
             list.push_front(node.data.clone());
-            cur = node.next.as_ref();
+            cur = &node.next;
         }
         list
     }
@@ -139,7 +134,7 @@ impl<T> Node<T> {
     }
 
     fn is_tail(&self) -> bool {
-        match self.next.as_ref() {
+        match self.next {
             None => true,
             _ => false,
         }
