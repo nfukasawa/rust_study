@@ -21,16 +21,12 @@ where
     }
 
     pub fn insert(&mut self, val: T) -> bool {
-        println!("insert: {}", val);
-        if self.root.contains(&val) {
-            println!("insert failed");
-            false
-        } else {
-            let node = mem::replace(&mut self.root, Tr::E);
-            self.root = node.insert(val).black();
-            println!("{:?}", self.root);
-            true
+        let (root, result) = mem::replace(&mut self.root, Tr::E).insert(val);
+        self.root = root;
+        if result {
+            self.root.black();
         }
+        result
     }
 }
 
@@ -54,10 +50,12 @@ where
         Tr::N(val, C::R, box Tr::E, box Tr::E)
     }
 
-    fn black(self) -> Tr<T> {
+    fn black(&mut self) {
         match self {
-            Tr::N(v, c, l, r) => Tr::N(v, C::B, l, r),
-            Tr::E => Tr::E,
+            Tr::N(v, c, l, r) => {
+                *c = C::B;
+            }
+            Tr::E => (),
         }
     }
 
@@ -72,14 +70,28 @@ where
         }
     }
 
-    fn insert(self, val: T) -> Tr<T> {
+    fn insert(self, val: T) -> (Tr<T>, bool) {
         match self {
             Tr::N(v, c, l, r) => match v.cmp(&val) {
-                Ordering::Equal => Tr::N(v, c, l, r),
-                Ordering::Less => Tr::N(v, c, l, box r.insert(val)).balance(),
-                Ordering::Greater => Tr::N(v, c, box l.insert(val), r).balance(),
+                Ordering::Equal => (Tr::N(v, c, l, r), false),
+                Ordering::Less => {
+                    let (r1, b) = r.insert(val);
+                    let mut n = Tr::N(v, c, l, box r1);
+                    if b {
+                        n = n.balance();
+                    }
+                    (n, b)
+                }
+                Ordering::Greater => {
+                    let (l1, b) = l.insert(val);
+                    let mut n = Tr::N(v, c, box l1, r);
+                    if b {
+                        n = n.balance()
+                    }
+                    (n, b)
+                }
             },
-            Tr::E => Tr::new(val),
+            Tr::E => (Tr::new(val), true),
         }
     }
 
@@ -103,8 +115,11 @@ where
     }
 }
 
+// run tests by
+// $ rustup run nightly cargo test
 #[test]
 fn test() {
+    // TODO
     let mut tree = RBTree::new();
     assert!(tree.insert(1));
     assert!(tree.insert(2));
