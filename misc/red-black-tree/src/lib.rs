@@ -1,6 +1,7 @@
 #![feature(box_syntax, box_patterns)]
 
 use std::cmp::Ordering;
+use std::fmt;
 use std::mem;
 
 pub struct RBTree<T: Ord> {
@@ -9,32 +10,37 @@ pub struct RBTree<T: Ord> {
 
 impl<T> RBTree<T>
 where
-    T: Ord,
+    T: Ord + fmt::Debug + fmt::Display,
 {
     pub fn new() -> RBTree<T> {
         RBTree { root: Tr::E }
     }
 
     pub fn contains(&self, val: &T) -> bool {
-        self.contains(val)
+        self.root.contains(val)
     }
 
     pub fn insert(&mut self, val: T) -> bool {
+        println!("insert: {}", val);
         if self.root.contains(&val) {
+            println!("insert failed");
             false
         } else {
             let node = mem::replace(&mut self.root, Tr::E);
-            self.root = node.insert(val);
+            self.root = node.insert(val).black();
+            println!("{:?}", self.root);
             true
         }
     }
 }
 
+#[derive(Debug)]
 enum C {
     R,
     B,
 }
 
+#[derive(Debug)]
 enum Tr<T: Ord> {
     N(T, C, Box<Tr<T>>, Box<Tr<T>>),
     E,
@@ -42,24 +48,27 @@ enum Tr<T: Ord> {
 
 impl<T> Tr<T>
 where
-    T: Ord,
+    T: Ord + fmt::Debug + fmt::Display,
 {
     fn new(val: T) -> Tr<T> {
         Tr::N(val, C::R, box Tr::E, box Tr::E)
     }
 
-    fn new_root(val: T) -> Tr<T> {
-        Tr::N(val, C::B, box Tr::E, box Tr::E)
+    fn black(self) -> Tr<T> {
+        match self {
+            Tr::N(v, c, l, r) => Tr::N(v, C::B, l, r),
+            Tr::E => Tr::E,
+        }
     }
 
     fn contains(&self, val: &T) -> bool {
         match self {
             Tr::N(v, c, l, r) => match v.cmp(val) {
                 Ordering::Equal => true,
-                Ordering::Less => l.contains(val),
-                Ordering::Greater => r.contains(val),
+                Ordering::Less => r.contains(val),
+                Ordering::Greater => l.contains(val),
             },
-            _ => false,
+            Tr::E => false,
         }
     }
 
@@ -67,10 +76,10 @@ where
         match self {
             Tr::N(v, c, l, r) => match v.cmp(&val) {
                 Ordering::Equal => Tr::N(v, c, l, r),
-                Ordering::Less => Tr::N(v, c, box l.insert(val), r).balance(),
-                Ordering::Greater => Tr::N(v, c, l, box r.insert(val)).balance(),
+                Ordering::Less => Tr::N(v, c, l, box r.insert(val)).balance(),
+                Ordering::Greater => Tr::N(v, c, box l.insert(val), r).balance(),
             },
-            _ => Tr::new(val),
+            Tr::E => Tr::new(val),
         }
     }
 
@@ -84,10 +93,10 @@ where
             Tr::N(v0, C::B, box Tr::N(v1, C::R, l1, box Tr::N(v2, C::R, l2, r2)), r0)
                 => Tr::N(v2, C::R, box Tr::N(v1, C::B, l1, l2), box Tr::N(v0, C::B, r2, r0)),
             // RL
-            Tr::N(v0, C::B, l0, box Tr::N(v1, C::R, box Tr::N(v2, C::R, l2, r2), r1)) 
+            Tr::N(v0, C::B, l0, box Tr::N(v1, C::R, box Tr::N(v2, C::R, l2, r2), r1))
                 => Tr::N(v2, C::R, box Tr::N(v0, C::B, l0, l2), box Tr::N(v1, C::B, r2, r1)),
             // RR
-            Tr::N(v0, C::B, l0, box Tr::N(v1, C::R, l1, box Tr::N(v2, C::R, l2, r2))) 
+            Tr::N(v0, C::B, l0, box Tr::N(v1, C::R, l1, box Tr::N(v2, C::R, l2, r2)))
                 => Tr::N(v1, C::R, box Tr::N(v0, C::B, l0, l1), box Tr::N(v2, C::B, l2, r2)),
             _ => self,
         }
@@ -101,5 +110,6 @@ fn test() {
     assert!(tree.insert(2));
     assert!(tree.insert(3));
     assert!(tree.insert(4));
+    assert!(tree.insert(5));
     assert!(!tree.insert(1));
 }
