@@ -1,4 +1,5 @@
 use rbtree;
+use std::time::Instant;
 
 // run tests by
 // $ rustup run nightly cargo test
@@ -26,6 +27,8 @@ fn test_rbtree() {
 
 #[test]
 fn test_stress() {
+    let t = Instant::now();
+
     let mut tree = rbtree::RBTreeSet::new();
     (0..100000).for_each(|n| {
         assert!(!tree.contains(&n));
@@ -33,4 +36,6 @@ fn test_stress() {
         assert!(tree.contains(&n));
         assert_eq!(n+1, tree.len());
     });
+
+    println!("time: {:?}", t.elapsed());
 }

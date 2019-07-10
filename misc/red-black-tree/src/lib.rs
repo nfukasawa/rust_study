@@ -87,19 +87,11 @@ where
                 Ordering::Equal => (Tr::N(v, c, l, r), false),
                 Ordering::Less => {
                     let (r1, b) = r.insert(val);
-                    let mut n = Tr::N(v, c, l, box r1);
-                    if b {
-                        n = n.balance();
-                    }
-                    (n, b)
+                    (Tr::N(v, c, l, box r1).balance(), b)
                 }
                 Ordering::Greater => {
                     let (l1, b) = l.insert(val);
-                    let mut n = Tr::N(v, c, box l1, r);
-                    if b {
-                        n = n.balance()
-                    }
-                    (n, b)
+                    (Tr::N(v, c, box l1, r), b)
                 }
             },
             Tr::E => (Tr::new(val), true),
