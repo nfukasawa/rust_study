@@ -4,20 +4,24 @@ use std::cmp::Ordering;
 use std::fmt;
 use std::mem;
 
-pub struct RBTree<T: Ord> {
+pub struct RBTreeSet<T: Ord> {
     root: Tr<T>,
 }
 
-impl<T> RBTree<T>
+impl<T> RBTreeSet<T>
 where
     T: Ord + fmt::Debug + fmt::Display,
 {
-    pub fn new() -> RBTree<T> {
-        RBTree { root: Tr::E }
+    pub fn new() -> RBTreeSet<T> {
+        RBTreeSet { root: Tr::E }
     }
 
     pub fn contains(&self, val: &T) -> bool {
         self.root.contains(val)
+    }
+    
+    pub fn len(&self) -> u64 {
+        self.root.len()
     }
 
     pub fn insert(&mut self, val: T) -> bool {
@@ -70,6 +74,13 @@ where
         }
     }
 
+    fn len(&self) ->u64 {
+        match self {
+            Tr::N(v, c, l, r) => l.len() + r.len() + 1,
+            Tr::E => 0,
+        }
+    }
+
     fn insert(self, val: T) -> (Tr<T>, bool) {
         match self {
             Tr::N(v, c, l, r) => match v.cmp(&val) {
@@ -100,7 +111,7 @@ where
         match self {
             // LL
             Tr::N(v0, C::B, box Tr::N(v1, C::R, box Tr::N(v2, C::R, l2, r2), r1), r0)
-                => Tr::N(v1, C::R, box Tr::N(v0, C::B, l2, r2), box Tr::N(v2, C::B, r1, r0)),
+                => Tr::N(v1, C::R, box Tr::N(v2, C::B, l2, r2), box Tr::N(v0, C::B, r1, r0)),
             // LR
             Tr::N(v0, C::B, box Tr::N(v1, C::R, l1, box Tr::N(v2, C::R, l2, r2)), r0)
                 => Tr::N(v2, C::R, box Tr::N(v1, C::B, l1, l2), box Tr::N(v0, C::B, r2, r0)),
@@ -113,18 +124,4 @@ where
             _ => self,
         }
     }
-}
-
-// run tests by
-// $ rustup run nightly cargo test
-#[test]
-fn test() {
-    // TODO
-    let mut tree = RBTree::new();
-    assert!(tree.insert(1));
-    assert!(tree.insert(2));
-    assert!(tree.insert(3));
-    assert!(tree.insert(4));
-    assert!(tree.insert(5));
-    assert!(!tree.insert(1));
 }
