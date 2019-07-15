@@ -58,7 +58,7 @@ where
 
     fn black(&mut self) {
         match self {
-            Tr::N(v, c, l, r) => {
+            Tr::N(_, c, _, _) => {
                 *c = C::B;
             }
             Tr::E => (),
@@ -67,7 +67,7 @@ where
 
     fn contains(&self, val: &T) -> bool {
         match self {
-            Tr::N(v, c, l, r) => match v.cmp(val) {
+            Tr::N(v, _, l, r) => match v.cmp(val) {
                 Ordering::Equal => true,
                 Ordering::Less => r.contains(val),
                 Ordering::Greater => l.contains(val),

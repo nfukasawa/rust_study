@@ -1,4 +1,4 @@
-use rand::prelude::*;
+use rand;
 use rbtree;
 use std::time::Instant;
 // run tests by
@@ -42,14 +42,13 @@ fn test_stress_worst() {
 
 #[test]
 fn test_stress_rand() {
-    let v = (0..100000).map(|n| rand::random::<i32>());
+    let v = (0..100000).map(|_| rand::random::<i32>());
 
     let t = Instant::now();
 
     let mut tree = rbtree::RBTreeSet::new();
     let mut c = 0;
-    v.for_each(|n| {
-        let x = rand::random::<i32>();
+    v.for_each(|x| {
         if !tree.contains(&x) {
             assert!(tree.insert(x));
             c += 1;
