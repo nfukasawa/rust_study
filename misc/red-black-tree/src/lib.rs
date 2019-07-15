@@ -14,7 +14,10 @@ where
     T: Ord + fmt::Debug + fmt::Display,
 {
     pub fn new() -> RBTreeSet<T> {
-        RBTreeSet { root: Tr::E, len:0 }
+        RBTreeSet {
+            root: Tr::E,
+            len: 0,
+        }
     }
 
     pub fn contains(&self, val: &T) -> bool {
@@ -42,6 +45,17 @@ enum C {
     B,
 }
 
+
+impl C
+{
+    fn is_black(&self) -> bool {
+        match self {
+            C::B => true,
+            _ => false,
+        }
+    }
+}
+
 #[derive(Debug)]
 enum Tr<T> {
     N(T, C, Box<Tr<T>>, Box<Tr<T>>),
@@ -54,6 +68,13 @@ where
 {
     fn new(val: T) -> Tr<T> {
         Tr::N(val, C::R, box Tr::E, box Tr::E)
+    }
+
+    fn is_nil(&self) -> bool {
+        match self {
+            Tr::E => true,
+            _ => false,
+        }
     }
 
     fn black(&mut self) {
@@ -109,6 +130,56 @@ where
             Tr::N(v0, C::B, l0, box Tr::N(v1, C::R, l1, box Tr::N(v2, C::R, l2, r2)))
                 => Tr::N(v1, C::R, box Tr::N(v0, C::B, l0, l1), box Tr::N(v2, C::B, l2, r2)),
             _ => self,
+        }
+    }
+
+    fn remove(self, val: &T) -> (Tr<T>, bool) {
+        match self {
+            Tr::N(v, c, l, r) => match v.cmp(&val) {
+                Ordering::Equal => match (*l, *r) {
+                    (Tr::E, Tr::E) => (Tr::E, false),
+                    (l, Tr::E) => (l, true),
+                    (Tr::E, r) => (r, true),
+                    (l, r) => {
+                        let (l1, v1, c1) = l.remove_max();
+                        (Tr::N(v1, c1, box l1, box r).balance_remove_left(), true)
+                    }
+                },
+                Ordering::Less => {
+                    let (n, b) = r.remove(val);
+                    (n.balance_remove_right(), b)
+                },
+                Ordering::Greater => {
+                    let (n,b) = l.remove(val);
+                    (n.balance_remove_left(), b)
+                }
+            },
+            Tr::E => (self, false),
+        }
+    }
+
+    fn balance_remove_left(self) -> Tr<T> {
+        // TODO
+        return self
+    }
+
+    fn balance_remove_right(self) -> Tr<T> {
+        // TODO
+        return self
+    }
+
+    #[rustfmt::skip]
+    fn remove_max(self) -> (Tr<T>, T, C) {
+        match self {
+            Tr::N(v,c,l,box Tr::N(v1, c1, l1, box Tr::E))
+                => (Tr::N(v,c,l, box Tr::E), v1, c1),
+            Tr::N(v,c,l,box Tr::E)
+                => (*l, v, c),
+            Tr::N(v,c,l,r) => {
+                let (node, v1, c1) = r.remove_max();
+                (Tr::N(v, c, l, box node), v1, c1)
+            }
+            Tr::E => panic!("node must not be empty")
         }
     }
 }
