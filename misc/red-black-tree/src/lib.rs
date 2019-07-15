@@ -4,8 +4,9 @@ use std::cmp::Ordering;
 use std::fmt;
 use std::mem;
 
-pub struct RBTreeSet<T: Ord> {
+pub struct RBTreeSet<T> {
     root: Tr<T>,
+    len: u64,
 }
 
 impl<T> RBTreeSet<T>
@@ -13,15 +14,15 @@ where
     T: Ord + fmt::Debug + fmt::Display,
 {
     pub fn new() -> RBTreeSet<T> {
-        RBTreeSet { root: Tr::E }
+        RBTreeSet { root: Tr::E, len:0 }
     }
 
     pub fn contains(&self, val: &T) -> bool {
         self.root.contains(val)
     }
-    
+
     pub fn len(&self) -> u64 {
-        self.root.len()
+        self.len
     }
 
     pub fn insert(&mut self, val: T) -> bool {
@@ -29,6 +30,7 @@ where
         self.root = root;
         if result {
             self.root.black();
+            self.len += 1;
         }
         result
     }
@@ -41,7 +43,7 @@ enum C {
 }
 
 #[derive(Debug)]
-enum Tr<T: Ord> {
+enum Tr<T> {
     N(T, C, Box<Tr<T>>, Box<Tr<T>>),
     E,
 }
@@ -74,24 +76,17 @@ where
         }
     }
 
-    fn len(&self) ->u64 {
-        match self {
-            Tr::N(v, c, l, r) => l.len() + r.len() + 1,
-            Tr::E => 0,
-        }
-    }
-
     fn insert(self, val: T) -> (Tr<T>, bool) {
         match self {
             Tr::N(v, c, l, r) => match v.cmp(&val) {
                 Ordering::Equal => (Tr::N(v, c, l, r), false),
                 Ordering::Less => {
                     let (r1, b) = r.insert(val);
-                    (Tr::N(v, c, l, box r1).balance(), b)
+                    (Tr::N(v, c, l, box r1).balance_insert(), b)
                 }
                 Ordering::Greater => {
                     let (l1, b) = l.insert(val);
-                    (Tr::N(v, c, box l1, r), b)
+                    (Tr::N(v, c, box l1, r).balance_insert(), b)
                 }
             },
             Tr::E => (Tr::new(val), true),
@@ -99,7 +94,7 @@ where
     }
 
     #[rustfmt::skip]
-    fn balance(self) -> Tr<T> {
+    fn balance_insert(self) -> Tr<T> {
         match self {
             // LL
             Tr::N(v0, C::B, box Tr::N(v1, C::R, box Tr::N(v2, C::R, l2, r2), r1), r0)
