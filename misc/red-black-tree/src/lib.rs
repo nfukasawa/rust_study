@@ -1,5 +1,6 @@
 #![feature(box_syntax, box_patterns)]
 
+use std::cmp;
 use std::cmp::Ordering;
 use std::fmt;
 use std::mem;
@@ -37,6 +38,10 @@ where
         }
         result
     }
+
+    pub fn verify_rbtree(&self)  {
+        self.root.verify()
+    }
 }
 
 #[derive(Debug)]
@@ -70,10 +75,26 @@ where
         Tr::N(val, C::R, box Tr::E, box Tr::E)
     }
 
-    fn is_nil(&self) -> bool {
+    fn verify(&self) {
         match self {
-            Tr::E => true,
-            _ => false,
+            Tr::N(_, C::R, box Tr::N(_, C::R, _, _), _) | Tr::N(_, C::R, _, box Tr::N(_, C::R, _, _)) => panic!("invalid rbtree"),
+            Tr::N(_, _, l, r) => {
+                l.verify();
+                r.verify();
+                assert_eq!(l.count_black(), r.count_black());
+            }
+            _ => (),
+        }       
+    }
+
+    fn count_black(&self) -> u64 {
+        match self {
+            Tr::N(_, c, l, r) => {
+                let n = l.count_black();
+                assert_eq!(n, r.count_black());
+                n + if c.is_black() {1} else {0}
+            },
+            _ => 0,
         }
     }
 

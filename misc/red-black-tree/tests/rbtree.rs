@@ -36,6 +36,8 @@ fn test_stress_worst() {
         assert!(tree.contains(&n));
         assert_eq!(n + 1, tree.len());
     });
+    
+    tree.verify_rbtree();
 
     println!("test_stress_worst: time: {:?}", t.elapsed());
 }
@@ -56,6 +58,8 @@ fn test_stress_rand() {
         assert!(tree.contains(&x));
         assert_eq!(c, tree.len());
     });
+
+    tree.verify_rbtree();
 
     println!("test_stress_rand: time: {:?}", t.elapsed());
 }
