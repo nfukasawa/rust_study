@@ -31,7 +31,7 @@ impl FromStr for Value {
 }
 
 struct Parser<'a> {
-    pos: usize,
+    index: usize,
     bytes: &'a [u8],
     len: usize,
 }
@@ -39,18 +39,16 @@ struct Parser<'a> {
 impl<'a> Parser<'a> {
     fn new(bytes: &'a [u8]) -> Self {
         Parser {
-            pos: 0,
+            index: 0,
             bytes: bytes,
             len: bytes.len(),
         }
     }
 
     fn parse(&mut self) -> Result<Value, Err> {
-        let res = self.parse_value();
-        if res.is_err() {
-            res
-        } else if self.skip_spaces().is_none() {
-            res
+        let val = self.parse_value()?;
+        if self.skip_spaces().is_none() {
+            Ok(val)
         } else {
             Err(Err::new())
         }
@@ -76,7 +74,8 @@ impl<'a> Parser<'a> {
     fn parse_string(&mut self) -> Result<Value, Err> {
         let mut escaped = false;
         let mut s = String::new();
-        let mut head = self.cur();
+        let mut head = self.pos();
+        let mut closed = false;
 
         while let Some(b) = self.next() {
             if escaped {
@@ -90,24 +89,31 @@ impl<'a> Parser<'a> {
                     b'u' => self.hex_to_char()?,
                     _ => return Err(Err::new()),
                 });
-                head = self.pos;
+                head = self.index;
                 escaped = false;
             } else {
                 match b {
                     b'\\' => {
-                        s.push_str(self.substr_force(head, self.cur() - 1).as_str());
+                        s.push_str(self.substr_force(head, self.pos() - 1).as_str());
                         escaped = true;
                     }
                     b'"' => {
-                        s.push_str(self.substr_force(head, self.cur() - 1).as_str());
+                        s.push_str(self.substr_force(head, self.pos() - 1).as_str());
+                        closed = true;
                         break;
                     }
                     _ => (),
                 }
             }
         }
-        Ok(Value::String(s))
+
+        if closed {
+            Ok(Value::String(s))
+        } else {
+            Err(Err::new())
+        }
     }
+
     fn hex_to_char(&mut self) -> Result<char, Err> {
         match self.next_bytes(4) {
             None => Err(Err::new()),
@@ -116,9 +122,9 @@ impl<'a> Parser<'a> {
                 for b in bs {
                     n *= 16;
                     n += match b {
-                        b @ b'0'...b'9' => b - b'0',
-                        b @ b'A'...b'F' => b - b'A' + 10,
-                        b @ b'a'...b'f' => b - b'a' + 10,
+                        b'0'...b'9' => b - b'0',
+                        b'A'...b'F' => b - b'A' + 10,
+                        b'a'...b'f' => b - b'a' + 10,
                         _ => return Err(Err::new()),
                     } as u32;
                 }
@@ -129,14 +135,89 @@ impl<'a> Parser<'a> {
             }
         }
     }
+
     fn substr_force(&mut self, from: usize, to: usize) -> String {
         bytes_to_string(self.slice_bytes(from, to).unwrap())
     }
 
     fn parse_number(&mut self) -> Result<Value, Err> {
-        self.back_ch();
-        // TODO
-        Ok(Value::Boolean(true))
+        self.back();
+        let head = self.pos();
+
+        enum State {
+            Init,
+            Minus,
+            Integer,
+            Fraction,
+            ExpSign,
+            Exp,
+        }
+        let mut state = State::Init;
+
+        while let Some(b) = self.next() {
+            state = match state {
+                State::Init => match b {
+                    b'-' => State::Minus,
+                    b'0' => {
+                        self.match_next_bytes(&[b'.'])?;
+                        State::Fraction
+                    }
+                    b'1'...b'9' => State::Integer,
+                    _ => {
+                        self.back();
+                        break;
+                    }
+                },
+                State::Minus => match b {
+                    b'0' => {
+                        self.match_next_bytes(&[b'.'])?;
+                        State::Fraction
+                    }
+                    b'1'...b'9' => State::Integer,
+                    _ => {
+                        self.back();
+                        break;
+                    }
+                },
+                State::Integer => match b {
+                    b'0'...b'9' => State::Integer,
+                    b'.' => State::Fraction,
+                    b'e' | b'E' => State::ExpSign,
+                    _ => {
+                        self.back();
+                        break;
+                    }
+                },
+                State::Fraction => match b {
+                    b'0'...b'9' => State::Integer,
+                    b'e' | b'E' => State::ExpSign,
+                    _ => {
+                        self.back();
+                        break;
+                    }
+                },
+                State::ExpSign => match b {
+                    b'+' | b'-' => State::Exp,
+                    _ => {
+                        self.back();
+                        break;
+                    }
+                },
+                State::Exp => match b {
+                    b'0'...b'9' => State::Exp,
+                    _ => {
+                        self.back();
+                        break;
+                    }
+                },
+            }
+        }
+
+        let mut s = String::new();
+        for b in self.slice_bytes(head, self.pos()).unwrap() {
+            s.push(*b as char);
+        }
+        Ok(Value::Number(s.parse().unwrap()))
     }
 
     fn parse_object(&mut self) -> Result<Value, Err> {
@@ -174,6 +255,42 @@ impl<'a> Parser<'a> {
         None
     }
 
+    fn next(&mut self) -> Option<u8> {
+        if self.index < self.len {
+            let ret = Some(self.bytes[self.index]);
+            self.index += 1;
+            ret
+        } else {
+            None
+        }
+    }
+
+    fn back(&mut self) {
+        self.index -= 1;
+    }
+
+    fn pos(&self) -> usize {
+        self.index
+    }
+
+    fn slice_bytes(&self, from: usize, to: usize) -> Option<&[u8]> {
+        if from > to || to > self.len {
+            None
+        } else {
+            Some(&self.bytes[from..to])
+        }
+    }
+
+    fn next_bytes(&mut self, n: usize) -> Option<&[u8]> {
+        if self.index + n - 1 < self.len {
+            let head = self.index;
+            self.index += n;
+            Some(&self.bytes[head..self.index])
+        } else {
+            None
+        }
+    }
+
     fn match_next_bytes(&mut self, bs: &[u8]) -> Result<(), Err> {
         match self.next_bytes(bs.len()) {
             Some(bs0) => {
@@ -185,46 +302,6 @@ impl<'a> Parser<'a> {
             }
             None => Err(Err::new()),
         }
-    }
-
-    fn next_bytes(&mut self, n: usize) -> Option<&[u8]> {
-        if self.pos + n - 1 < self.len {
-            let head = self.pos;
-            self.pos += n;
-            Some(&self.bytes[head..self.pos])
-        } else {
-            None
-        }
-    }
-
-    fn next(&mut self) -> Option<u8> {
-        if self.pos < self.len {
-            let ret = Some(self.bytes[self.pos]);
-            self.pos += 1;
-            ret
-        } else {
-            None
-        }
-    }
-
-    fn slice_bytes(&self, from: usize, to: usize) -> Option<&[u8]> {
-        if from > to || to > self.len {
-            None
-        } else {
-            Some(&self.bytes[from..to])
-        }
-    }
-
-    fn back_ch(&mut self) {
-        self.pos -= 1;
-    }
-
-    fn skip_ch(&mut self) {
-        self.pos += 1;
-    }
-
-    fn cur(&self) -> usize {
-        self.pos
     }
 }
 

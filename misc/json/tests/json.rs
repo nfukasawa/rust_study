@@ -4,10 +4,6 @@ use std::str::FromStr;
 #[test]
 fn test_null() {
     assert_eq!(Ok(json::Value::Null), json::Value::from_str("null"));
-    assert_eq!(Ok(json::Value::Null), json::Value::from_str("   null"));
-    assert_eq!(Ok(json::Value::Null), json::Value::from_str("null   "));
-    assert_eq!(Ok(json::Value::Null), json::Value::from_str("  null   "));
-    assert_ne!(Ok(json::Value::Null), json::Value::from_str("  null 1"));
 }
 
 #[test]
@@ -24,18 +20,40 @@ fn test_boolean() {
 
 #[test]
 fn test_string() {
-    assert_eq!(
-        Ok(json::Value::String("hello\nこんにちは".to_string())),
-        json::Value::from_str(r#" "hello\nこんにちは" "#)
-    );
-    assert_eq!(
-        Ok(json::Value::String("\"\\/\x08\x0C\n\r\t".to_string())),
-        json::Value::from_str(r#" "\"\\\/\b\f\n\r\t" "#)
-    );
-    assert_eq!(
-        Ok(json::Value::String("\u{AB12}".to_string())),
-        json::Value::from_str(r#" "\uAb12" "#)
-    );
+    let cases: Vec<(&str, &str)> = vec![
+        (r#" "" "#, ""),
+        (r#" "hello\nこんにちは" "#, "hello\nこんにちは"),
+        (r#" "\"\\\/\b\f\n\r\t" "#, "\"\\/\x08\x0C\n\r\t"),
+        (r#" "\uAb12" "#, "\u{AB12}"),
+    ];
+
+    for case in cases {
+        assert_eq!(
+            Ok(json::Value::String(case.1.to_string())),
+            json::Value::from_str(case.0)
+        );
+    }
+}
+
+#[test]
+fn test_number() {
+    let cases: Vec<(&str, f64)> = vec![
+        ("123456789", 123456789 as f64),
+        ("1234 ", 1234 as f64),
+        ("-1234 ", -1234 as f64),
+        ("0.123 ", 0.123 as f64),
+        ("-0.123 ", -0.123 as f64),
+        ("1.234 ", 1.234 as f64),
+        ("1234e+3 ", 1234e+3 as f64),
+        ("0.123e-3 ", 0.123e-3 as f64),
+    ];
+
+    for case in cases {
+        assert_eq!(
+            Ok(json::Value::Number(case.1)),
+            json::Value::from_str(case.0)
+        );
+    }
 }
 
 #[test]
