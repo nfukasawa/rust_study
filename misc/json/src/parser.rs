@@ -26,7 +26,7 @@ impl<R: Reader> Parser<R> {
     fn parse_value(&mut self) -> Result<Value, Err> {
         match self.skip_spaces() {
             Some(b'"') => self.parse_string(),
-            Some(b'0'...b'9') | Some(b'-') => self.parse_number(),
+            c @ Some(b'0'...b'9') | c @ Some(b'-') => self.parse_number(c.unwrap()),
             Some(b'{') => self.parse_object(),
             Some(b'[') => self.parse_array(),
             Some(b't') => self.parse_true(),
@@ -105,34 +105,28 @@ impl<R: Reader> Parser<R> {
         bytes_to_string(self.slice(from, to).unwrap())
     }
 
-    fn parse_number(&mut self) -> Result<Value, Err> {
-        self.back();
-        let head = self.pos();
-
+    fn parse_number(&mut self, first: u8) -> Result<Value, Err> {
         enum State {
-            Init,
             Minus,
             Integer,
             Fraction,
             ExpSign,
             Exp,
         }
-        let mut state = State::Init;
+
+        let mut state = match first {
+            b'-' => State::Minus,
+            b'0' => {
+                self.match_next_bytes(&[b'.'])?;
+                State::Fraction
+            }
+            b'1'...b'9' => State::Integer,
+            _ => panic!("invalid first byte."),
+        };
+        let head = self.pos() - 1;
 
         while let Some(b) = self.next() {
             state = match state {
-                State::Init => match b {
-                    b'-' => State::Minus,
-                    b'0' => {
-                        self.match_next_bytes(&[b'.'])?;
-                        State::Fraction
-                    }
-                    b'1'...b'9' => State::Integer,
-                    _ => {
-                        self.back();
-                        break;
-                    }
-                },
                 State::Minus => match b {
                     b'0' => {
                         self.match_next_bytes(&[b'.'])?;
@@ -276,6 +270,7 @@ impl<R: Reader> Parser<R> {
     fn pos(&self) -> usize {
         self.reader.pos()
     }
+
     fn back(&mut self) {
         self.reader.mov(-1).unwrap();
     }
