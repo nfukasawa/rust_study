@@ -12,6 +12,85 @@ pub enum Value {
     Object(HashMap<String, Value>),
 }
 
+impl Value {
+    pub fn is_null(&self) -> bool {
+        match self {
+            Value::Null => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_number(&self) -> bool {
+        match self {
+            Value::Number(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_boolean(&self) -> bool {
+        match self {
+            Value::Boolean(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_string(&self) -> bool {
+        match self {
+            Value::String(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_array(&self) -> bool {
+        match self {
+            Value::Array(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_object(&self) -> bool {
+        match self {
+            Value::Object(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn as_number(&self) -> Option<f64> {
+        match self {
+            Value::Number(v) => Some(*v),
+            _ => None,
+        }
+    }
+
+    pub fn as_boolean(&self) -> Option<bool> {
+        match self {
+            Value::Boolean(v) => Some(*v),
+            _ => None,
+        }
+    }
+
+    pub fn as_string(&self) -> Option<&String> {
+        match self {
+            Value::String(v) => Some(v),
+            _ => None,
+        }
+    }
+
+    pub fn as_array(&self) -> Option<&Vec<Value>> {
+        match self {
+            Value::Array(v) => Some(v),
+            _ => None,
+        }
+    }
+
+    pub fn as_object(&self) -> Option<&HashMap<String, Value>> {
+        match self {
+            Value::Object(v) => Some(v),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Err {} // TODO
 
@@ -55,19 +134,15 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_value(&mut self) -> Result<Value, Err> {
-        if let Some(b) = self.skip_spaces() {
-            match b {
-                b'"' => self.parse_string(),
-                b'0'...b'9' | b'-' => self.parse_number(),
-                b'{' => self.parse_object(),
-                b'[' => self.parse_array(),
-                b't' => self.parse_true(),
-                b'f' => self.parse_false(),
-                b'n' => self.parse_null(),
-                _ => return Err(Err::new()),
-            }
-        } else {
-            Err(Err::new())
+        match self.skip_spaces() {
+            Some(b'"') => self.parse_string(),
+            Some(b'0'...b'9') | Some(b'-') => self.parse_number(),
+            Some(b'{') => self.parse_object(),
+            Some(b'[') => self.parse_array(),
+            Some(b't') => self.parse_true(),
+            Some(b'f') => self.parse_false(),
+            Some(b'n') => self.parse_null(),
+            _ => return Err(Err::new()),
         }
     }
 
@@ -221,13 +296,44 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_object(&mut self) -> Result<Value, Err> {
-        // TODO
-        Ok(Value::Boolean(true))
+        let mut obj = HashMap::new();
+        loop {
+            let key;
+            match self.skip_spaces() {
+                Some(b'"') => {
+                    key = self.parse_string()?.as_string().unwrap().clone();
+                }
+                _ => return Err(Err::new()),
+            }
+
+            match self.skip_spaces() {
+                Some(b':') => (),
+                _ => return Err(Err::new()),
+            }
+
+            obj.insert(key, self.parse_value()?);
+
+            match self.skip_spaces() {
+                Some(b',') => (),
+                Some(b'}') => break,
+                _ => return Err(Err::new()),
+            }
+        }
+        Ok(Value::Object(obj))
     }
 
     fn parse_array(&mut self) -> Result<Value, Err> {
-        // TODO
-        Ok(Value::Boolean(true))
+        let mut arr = Vec::new();
+        loop {
+            let v = self.parse_value()?;
+            arr.push(v);
+            match self.skip_spaces() {
+                Some(b',') => (),
+                Some(b']') => break,
+                _ => return Err(Err::new()),
+            }
+        }
+        Ok(Value::Array(arr))
     }
 
     fn parse_true(&mut self) -> Result<Value, Err> {
@@ -253,6 +359,19 @@ impl<'a> Parser<'a> {
             }
         }
         None
+    }
+
+    fn match_next_bytes(&mut self, bs: &[u8]) -> Result<(), Err> {
+        match self.next_bytes(bs.len()) {
+            Some(bs0) => {
+                if bs.eq(bs0) {
+                    Ok(())
+                } else {
+                    Err(Err::new())
+                }
+            }
+            None => Err(Err::new()),
+        }
     }
 
     fn next(&mut self) -> Option<u8> {
@@ -288,19 +407,6 @@ impl<'a> Parser<'a> {
             Some(&self.bytes[head..self.index])
         } else {
             None
-        }
-    }
-
-    fn match_next_bytes(&mut self, bs: &[u8]) -> Result<(), Err> {
-        match self.next_bytes(bs.len()) {
-            Some(bs0) => {
-                if bs.eq(bs0) {
-                    Ok(())
-                } else {
-                    Err(Err::new())
-                }
-            }
-            None => Err(Err::new()),
         }
     }
 }
