@@ -21,14 +21,13 @@ fn test_null() {
 
 #[test]
 fn test_boolean() {
-    assert_eq!(
-        Ok(json::Value::Boolean(true)),
-        json::Value::from_str("true")
-    );
-    assert_eq!(
-        Ok(json::Value::Boolean(false)),
-        json::Value::from_str("false")
-    );
+    let cases: Vec<(&str, bool)> = vec![("true", true), ("false", false)];
+    for case in cases {
+        assert_eq!(
+            Ok(json::Value::Boolean(case.1)),
+            json::Value::from_str(case.0)
+        );
+    }
 }
 
 #[test]
@@ -38,6 +37,8 @@ fn test_string() {
         (r#" "hello\nこんにちは" "#, "hello\nこんにちは"),
         (r#" "\"\\\/\b\f\n\r\t" "#, "\"\\/\x08\x0C\n\r\t"),
         (r#" "\uAb12" "#, "\u{AB12}"),
+        (r#" "𩸽" "#, "𩸽"),
+        (r#" "🤔" "#, "🤔"),
     ];
 
     for case in cases {
@@ -64,7 +65,7 @@ fn test_number() {
 
     for case in cases {
         assert_eq!(
-            Ok(json::Value::Number(case.1)),
+            Ok(json::Value::Number(case.1 as f64)),
             json::Value::from_str(case.0)
         );
     }
