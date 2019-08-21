@@ -55,13 +55,14 @@ fn test_number() {
 #[test]
 fn test_array() {
     assert_eq!(
-        Ok(json::value!([123, "abc", true, ["foo", "bar"]])),
+        Ok(json::value!([123, "abc", true, ["foo", "bar"], null])),
         json::Value::from_str(
             r#"[ 
             123  , 
             "abc",
             true  , 
-            ["foo", "bar"]
+            ["foo", "bar"],
+            null
             ]"#
         )
     )
@@ -77,14 +78,16 @@ fn test_object() {
             "obj": {
                 "one": 1,
                 "two": 2
-            }
+            },
+            "null": null
         })),
         json::Value::from_str(
             r#"{ 
             "num" :  123  , 
             "str"  : "abc"  ,  
             "bool":   true,  
-            "obj" : {"one":1,"two":2}
+            "obj" : {"one":1,"two":2},
+            "null": null
             }"#
         )
     )
