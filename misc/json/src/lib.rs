@@ -1,4 +1,5 @@
 mod error;
+mod macros;
 mod parser;
 mod reader;
 mod value;

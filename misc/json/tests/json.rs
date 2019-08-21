@@ -1,32 +1,16 @@
 use json;
-use std::collections::HashMap;
 use std::str::FromStr;
-
-macro_rules! obj {
-    ( $( $t:expr),* ) => {
-        {
-            let mut m = HashMap::new();
-            $(
-                m.insert($t.0.to_string(), $t.1);
-            )*
-            m
-        }
-    };
-}
 
 #[test]
 fn test_null() {
-    assert_eq!(Ok(json::Value::Null), json::Value::from_str("null"));
+    assert_eq!(Ok(json::value!(null)), json::Value::from_str("null"));
 }
 
 #[test]
 fn test_boolean() {
     let cases: Vec<(&str, bool)> = vec![("true", true), ("false", false)];
     for case in cases {
-        assert_eq!(
-            Ok(json::Value::Boolean(case.1)),
-            json::Value::from_str(case.0)
-        );
+        assert_eq!(Ok(json::value!(case.1)), json::Value::from_str(case.0));
     }
 }
 
@@ -64,25 +48,14 @@ fn test_number() {
     ];
 
     for case in cases {
-        assert_eq!(
-            Ok(json::Value::Number(case.1 as f64)),
-            json::Value::from_str(case.0)
-        );
+        assert_eq!(Ok(json::value!(case.1)), json::Value::from_str(case.0));
     }
 }
 
 #[test]
 fn test_array() {
     assert_eq!(
-        Ok(json::Value::Array(vec!(
-            json::Value::Number(123 as f64),
-            json::Value::String("abc".to_string()),
-            json::Value::Boolean(true),
-            json::Value::Array(vec!(
-                json::Value::String("foo".to_string()),
-                json::Value::String("bar".to_string()),
-            )),
-        ))),
+        Ok(json::value!([123, "abc", true, ["foo", "bar"]])),
         json::Value::from_str(
             r#"[ 
             123  , 
@@ -97,18 +70,15 @@ fn test_array() {
 #[test]
 fn test_object() {
     assert_eq!(
-        Ok(json::Value::Object(obj!(
-            ("num", json::Value::Number(123 as f64)),
-            ("str", json::Value::String("abc".to_string())),
-            ("bool", json::Value::Boolean(true)),
-            (
-                "obj",
-                json::Value::Object(obj!(
-                    ("one", json::Value::Number(1 as f64)),
-                    ("two", json::Value::Number(2 as f64))
-                ))
-            )
-        ))),
+        Ok(json::value!({
+            "num": 123,
+            "str": "abc",
+            "bool": true,
+            "obj": {
+                "one": 1,
+                "two": 2
+            }
+        })),
         json::Value::from_str(
             r#"{ 
             "num" :  123  , 
