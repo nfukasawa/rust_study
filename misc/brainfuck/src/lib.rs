@@ -15,47 +15,7 @@ impl<R: io::Read, W: io::Write> Interpreter<R, W> {
 
     pub fn interpret(&mut self, code: &[u8]) {
         let ops = opertions(code);
-        self.exec(&ops);
-    }
-
-    fn exec(&mut self, ops: &Vec<Op>) {
-        let mut mem = [0 as u8; 32765];
-        let mut ptr: usize = mem.len() / 2 + 1;
-
-        let mut i = 0;
-        while i < ops.len() {
-            match ops[i] {
-                Op::IncPtr(n) => ptr += n,
-                Op::DecPtr(n) => ptr -= n,
-                Op::IncVal(n) => mem[ptr] = mem[ptr].wrapping_add(n),
-                Op::DecVal(n) => mem[ptr] = mem[ptr].wrapping_sub(n),
-                Op::WriteVal => {
-                    match self.output.write(&[mem[ptr]]) {
-                        Err(err) => panic!(err),
-                        _ => (),
-                    }
-                }
-                Op::ReadVal => {
-                    let mut buf = [0; 1];
-                    match self.input.read(&mut buf) {
-                        Ok(1) => mem[ptr] = buf[0],
-                        Ok(_) => (),
-                        Err(err) => panic!(err),
-                    }
-                }
-                Op::LoopBegin(pos) => {
-                    if mem[ptr] == 0 {
-                        i = pos;
-                    }
-                }
-                Op::LoopEnd(pos) => i = pos - 1,
-                Op::OptSetValZero => mem[ptr] = 0,
-            }
-            i += 1;
-        }
-        if let Err(err) = self.output.flush() {
-            panic!(err);
-        }
+        exec(&ops, &mut self.input, &mut self.output);
     }
 }
 
@@ -71,6 +31,10 @@ enum Op {
     LoopEnd(usize),
 
     OptSetValZero,
+    OptMoveValRight(usize),
+    OptMoveValLeft(usize),
+    OptSearchZeroRight(usize),
+    OptSearchZeroLeft(usize),
 }
 
 fn opertions(code: &[u8]) -> Vec<Op> {
@@ -147,7 +111,81 @@ fn opertions(code: &[u8]) -> Vec<Op> {
 
 fn optimize_loop(ops: &[Op]) -> Option<Vec<Op>> {
     match ops {
+        // [-]
         [Op::DecVal(1)] => Some(vec![Op::OptSetValZero]),
+
+        // [>>>+<<<-]
+        [Op::IncPtr(n), Op::IncVal(1), Op::DecPtr(m), Op::DecVal(1)] if n == m => {
+            Some(vec![Op::OptMoveValRight(*n)])
+        }
+
+        // [-<<<+>>>]
+        [Op::DecVal(1), Op::DecPtr(n), Op::IncVal(1), Op::IncPtr(m)] if n == m => {
+            Some(vec![Op::OptMoveValLeft(*n)])
+        }
+
+        // [>>>]
+        [Op::IncPtr(n)] => Some(vec![Op::OptSearchZeroRight(*n)]),
+
+        // [<<<]
+        [Op::DecPtr(n)] => Some(vec![Op::OptSearchZeroLeft(*n)]),
+
         _ => None,
+    }
+}
+
+fn exec<R: io::Read, W: io::Write>(ops: &Vec<Op>, input: &mut R, output: &mut W) {
+    let mut mem = [0 as u8; 32765];
+    let mut ptr: usize = mem.len() / 2 + 1;
+
+    let mut i = 0;
+    while i < ops.len() {
+        match ops[i] {
+            Op::IncPtr(n) => ptr += n,
+            Op::DecPtr(n) => ptr -= n,
+            Op::IncVal(n) => mem[ptr] = mem[ptr].wrapping_add(n),
+            Op::DecVal(n) => mem[ptr] = mem[ptr].wrapping_sub(n),
+            Op::WriteVal => match output.write(&[mem[ptr]]) {
+                Err(err) => panic!(err),
+                _ => (),
+            },
+            Op::ReadVal => {
+                let mut buf = [0; 1];
+                match input.read(&mut buf) {
+                    Ok(1) => mem[ptr] = buf[0],
+                    Ok(_) => (),
+                    Err(err) => panic!(err),
+                }
+            }
+            Op::LoopBegin(pos) => {
+                if mem[ptr] == 0 {
+                    i = pos;
+                }
+            }
+            Op::LoopEnd(pos) => i = pos - 1,
+            Op::OptSetValZero => mem[ptr] = 0,
+            Op::OptMoveValRight(n) => {
+                mem[ptr + n] += mem[ptr];
+                mem[ptr] = 0;
+            }
+            Op::OptMoveValLeft(n) => {
+                mem[ptr - n] += mem[ptr];
+                mem[ptr] = 0;
+            }
+            Op::OptSearchZeroRight(n) => {
+                while mem[ptr] != 0 {
+                    ptr += n;
+                }
+            }
+            Op::OptSearchZeroLeft(n) => {
+                while mem[ptr] != 0 {
+                    ptr -= n;
+                }
+            }
+        }
+        i += 1;
+    }
+    if let Err(err) = output.flush() {
+        panic!(err);
     }
 }
