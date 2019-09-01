@@ -37,10 +37,10 @@ impl<R: Reader> Parser<R> {
     }
 
     fn parse_string(&mut self) -> Result<Value, Err> {
-        let mut escaped = false;
         let mut s = String::new();
-        let mut head = self.pos();
+        let mut buf = Vec::new();
         let mut closed = false;
+        let mut escaped = false;
 
         while let Some(b) = self.next() {
             if escaped {
@@ -54,20 +54,23 @@ impl<R: Reader> Parser<R> {
                     b'u' => self.hex_to_char()?,
                     _ => return Err(Err::new()),
                 });
-                head = self.pos();
                 escaped = false;
             } else {
                 match b {
                     b'\\' => {
-                        s.push_str(self.substr_force(head, self.pos() - 1).as_str());
+                        s.push_str(bytes_to_string(buf.as_slice()).as_str());
+                        buf.clear();
                         escaped = true;
                     }
                     b'"' => {
-                        s.push_str(self.substr_force(head, self.pos() - 1).as_str());
+                        s.push_str(bytes_to_string(buf.as_slice()).as_str());
+                        buf.clear();
                         closed = true;
                         break;
                     }
-                    _ => (),
+                    _ => {
+                        buf.push(b);
+                    }
                 }
             }
         }
@@ -80,8 +83,7 @@ impl<R: Reader> Parser<R> {
     }
 
     fn hex_to_char(&mut self) -> Result<char, Err> {
-        match self.next_bytes(4) {
-            None => Err(Err::new()),
+        match self.slice(4) {
             Some(bs) => {
                 let mut n: u32 = 0;
                 for b in bs {
@@ -93,21 +95,21 @@ impl<R: Reader> Parser<R> {
                         _ => return Err(Err::new()),
                     } as u32;
                 }
+                self.mov(4);
                 match char::from_u32(n) {
                     Some(c) => Ok(c),
                     None => Err(Err::new()),
                 }
             }
+            None => Err(Err::new()),
         }
-    }
-
-    fn substr_force(&mut self, from: usize, to: usize) -> String {
-        bytes_to_string(self.slice(from, to).unwrap())
     }
 
     fn parse_number(&mut self, first: u8) -> Result<Value, Err> {
         enum State {
             Minus,
+            Zero,
+            Dot,
             Integer,
             Fraction,
             ExpSign,
@@ -116,66 +118,52 @@ impl<R: Reader> Parser<R> {
 
         let mut state = match first {
             b'-' => State::Minus,
-            b'0' => {
-                self.match_next_bytes(&[b'.'])?;
-                State::Fraction
-            }
+            b'0' => State::Zero,
             b'1'...b'9' => State::Integer,
             _ => panic!("invalid first byte."),
         };
-        let head = self.pos() - 1;
 
-        while let Some(b) = self.next() {
+        let mut s = String::new();
+        s.push(first as char);
+        while let Some(b) = self.cur() {
             state = match state {
                 State::Minus => match b {
-                    b'0' => {
-                        self.match_next_bytes(&[b'.'])?;
-                        State::Fraction
-                    }
+                    b'0' => State::Zero,
                     b'1'...b'9' => State::Integer,
-                    _ => {
-                        self.back();
-                        break;
-                    }
+                    _ => break,
+                },
+                State::Zero => match b {
+                    b'.' => State::Dot,
+                    _ => break,
+                },
+                State::Dot => match b {
+                    b'0'...b'9' => State::Fraction,
+                    _ => break,
                 },
                 State::Integer => match b {
                     b'0'...b'9' => State::Integer,
                     b'.' => State::Fraction,
                     b'e' | b'E' => State::ExpSign,
-                    _ => {
-                        self.back();
-                        break;
-                    }
+                    _ => break,
                 },
                 State::Fraction => match b {
                     b'0'...b'9' => State::Integer,
                     b'e' | b'E' => State::ExpSign,
-                    _ => {
-                        self.back();
-                        break;
-                    }
+                    _ => break,
                 },
                 State::ExpSign => match b {
                     b'+' | b'-' => State::Exp,
-                    _ => {
-                        self.back();
-                        break;
-                    }
+                    _ => break,
                 },
                 State::Exp => match b {
                     b'0'...b'9' => State::Exp,
-                    _ => {
-                        self.back();
-                        break;
-                    }
+                    _ => break,
                 },
-            }
+            };
+            s.push(b as char);
+            self.forward();
         }
 
-        let mut s = String::new();
-        for b in self.slice(head, self.pos()).unwrap() {
-            s.push(*b as char);
-        }
         Ok(Value::Number(s.parse().unwrap()))
     }
 
@@ -246,9 +234,10 @@ impl<R: Reader> Parser<R> {
     }
 
     fn match_next_bytes(&mut self, bs: &[u8]) -> Result<(), Err> {
-        match self.next_bytes(bs.len()) {
-            Some(bs0) => {
-                if bs.eq(bs0) {
+        match self.slice(bs.len()) {
+            Some(s) => {
+                if bs.eq(s) {
+                    self.mov(bs.len());
                     Ok(())
                 } else {
                     Err(Err::new())
@@ -258,29 +247,30 @@ impl<R: Reader> Parser<R> {
         }
     }
 
-    fn next_bytes(&mut self, n: usize) -> Option<&[u8]> {
-        let from = self.reader.pos();
-        if let Some(to) = self.reader.mov(n as isize) {
-            self.reader.slice(from, to)
+    fn next(&mut self) -> Option<u8> {
+        let b = self.reader.cur();
+        if b.is_some() {
+            self.reader.mov(1);
+            b
         } else {
             None
         }
     }
 
-    fn pos(&self) -> usize {
-        self.reader.pos()
+    fn cur(&self) -> Option<u8> {
+        self.reader.cur()
     }
 
-    fn back(&mut self) {
-        self.reader.mov(-1).unwrap();
+    fn slice(&self, n: usize) -> Option<&[u8]> {
+        self.reader.slice(n)
     }
 
-    fn next(&mut self) -> Option<u8> {
-        self.reader.next()
+    fn mov(&mut self, n: usize) {
+        self.reader.mov(n)
     }
 
-    fn slice(&self, from: usize, to: usize) -> Option<&[u8]> {
-        self.reader.slice(from, to)
+    fn forward(&mut self) {
+        self.reader.mov(1);
     }
 }
 

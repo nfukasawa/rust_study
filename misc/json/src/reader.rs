@@ -1,8 +1,7 @@
 pub trait Reader {
-    fn pos(&self) -> usize;
-    fn mov(&mut self, n: isize) -> Option<usize>;
-    fn next(&mut self) -> Option<u8>;
-    fn slice(&self, from: usize, to: usize) -> Option<&[u8]>;
+    fn cur(&self) -> Option<u8>;
+    fn slice(&self, n: usize) -> Option<&[u8]>;
+    fn mov(&mut self, n: usize);
 }
 
 pub struct BytesReader<'a> {
@@ -22,32 +21,22 @@ impl<'a> BytesReader<'a> {
 }
 
 impl<'a> Reader for BytesReader<'a> {
-    fn pos(&self) -> usize {
-        self.index
-    }
-    fn mov(&mut self, n: isize) -> Option<usize> {
-        let pos = self.index as isize + n;
-        if pos < 0 || pos > self.len as isize {
-            None
-        } else {
-            self.index = pos as usize;
-            Some(self.index)
-        }
-    }
-    fn next(&mut self) -> Option<u8> {
+    fn cur(&self) -> Option<u8> {
         if self.index < self.len {
-            let ret = Some(self.bytes[self.index]);
-            self.index += 1;
-            ret
+            Some(self.bytes[self.index])
         } else {
             None
         }
     }
-    fn slice(&self, from: usize, to: usize) -> Option<&[u8]> {
-        if from > to || to > self.len {
-            None
+    fn slice(&self, n: usize) -> Option<&[u8]> {
+        let pos = self.index + n;
+        if pos <= self.len {
+            Some(&self.bytes[self.index..pos])
         } else {
-            Some(&self.bytes[from..to])
+            None
         }
+    }
+    fn mov(&mut self, n: usize) {
+        self.index = self.index + n;
     }
 }
