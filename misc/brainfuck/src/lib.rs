@@ -31,8 +31,10 @@ enum Op {
     LoopEnd(usize),
 
     OptSetValZero,
-    OptMoveValRight(usize),
-    OptMoveValLeft(usize),
+    OptAddValRight(usize),
+    OptAddValLeft(usize),
+    OptSubValRight(usize),
+    OptSubValLeft(usize),
     OptSearchZeroRight(usize),
     OptSearchZeroLeft(usize),
 }
@@ -116,12 +118,38 @@ fn optimize_loop(ops: &[Op]) -> Option<Vec<Op>> {
 
         // [>>>+<<<-]
         [Op::IncPtr(n), Op::IncVal(1), Op::DecPtr(m), Op::DecVal(1)] if n == m => {
-            Some(vec![Op::OptMoveValRight(*n)])
+            Some(vec![Op::OptAddValRight(*n)])
+        }
+        // [->>>+<<<]
+        [Op::DecVal(1), Op::IncPtr(n), Op::IncVal(1), Op::DecPtr(m)] if n == m => {
+            Some(vec![Op::OptAddValRight(*n)])
         }
 
+        // [<<<+>>>-]
+        [Op::DecPtr(n), Op::IncVal(1), Op::IncPtr(m), Op::DecVal(1)] if n == m => {
+            Some(vec![Op::OptAddValLeft(*n)])
+        }
         // [-<<<+>>>]
         [Op::DecVal(1), Op::DecPtr(n), Op::IncVal(1), Op::IncPtr(m)] if n == m => {
-            Some(vec![Op::OptMoveValLeft(*n)])
+            Some(vec![Op::OptAddValLeft(*n)])
+        }
+
+        // [>>>-<<<-]
+        [Op::IncPtr(n), Op::DecVal(1), Op::DecPtr(m), Op::DecVal(1)] if n == m => {
+            Some(vec![Op::OptSubValRight(*n)])
+        }
+        // [->>>-<<<]
+        [Op::DecVal(1), Op::IncPtr(n), Op::DecVal(1), Op::DecPtr(m)] if n == m => {
+            Some(vec![Op::OptSubValRight(*n)])
+        }
+
+        // [<<<->>>-]
+        [Op::DecPtr(n), Op::IncVal(1), Op::DecPtr(m), Op::DecVal(1)] if n == m => {
+            Some(vec![Op::OptSubValLeft(*n)])
+        }
+        // [-<<<->>>]
+        [Op::DecVal(1), Op::DecPtr(n), Op::DecVal(1), Op::IncPtr(m)] if n == m => {
+            Some(vec![Op::OptSubValLeft(*n)])
         }
 
         // [>>>]
@@ -164,12 +192,20 @@ fn exec<R: io::Read, W: io::Write>(ops: &Vec<Op>, input: &mut R, output: &mut W)
             }
             Op::LoopEnd(pos) => i = pos - 1,
             Op::OptSetValZero => mem[ptr] = 0,
-            Op::OptMoveValRight(n) => {
-                mem[ptr + n] += mem[ptr];
+            Op::OptAddValRight(n) => {
+                mem[ptr + n] = mem[ptr + n].wrapping_add(mem[ptr]);
                 mem[ptr] = 0;
             }
-            Op::OptMoveValLeft(n) => {
-                mem[ptr - n] += mem[ptr];
+            Op::OptAddValLeft(n) => {
+                mem[ptr - n] = mem[ptr - n].wrapping_add(mem[ptr]);
+                mem[ptr] = 0;
+            }
+            Op::OptSubValRight(n) => {
+                mem[ptr + n] = mem[ptr + n].wrapping_sub(mem[ptr]);
+                mem[ptr] = 0;
+            }
+            Op::OptSubValLeft(n) => {
+                mem[ptr - n] = mem[ptr - n].wrapping_sub(mem[ptr]);
                 mem[ptr] = 0;
             }
             Op::OptSearchZeroRight(n) => {
