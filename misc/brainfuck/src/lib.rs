@@ -24,16 +24,17 @@ impl<R: io::Read, W: io::Write> Interpreter<R, W> {
 
         let mut i = 0;
         while i < ops.len() {
-            println!("OP: {:?}", ops[i]);
             match ops[i] {
                 Op::IncPtr(n) => ptr += n,
                 Op::DecPtr(n) => ptr -= n,
-                Op::IncVal(n) => mem[ptr] += n,
-                Op::DecVal(n) => mem[ptr] -= n,
-                Op::WriteVal => match self.output.write(&[mem[ptr]]) {
-                    Err(err) => panic!(err),
-                    _ => (),
-                },
+                Op::IncVal(n) => mem[ptr] = mem[ptr].wrapping_add(n),
+                Op::DecVal(n) => mem[ptr] = mem[ptr].wrapping_sub(n),
+                Op::WriteVal => {
+                    match self.output.write(&[mem[ptr]]) {
+                        Err(err) => panic!(err),
+                        _ => (),
+                    }
+                }
                 Op::ReadVal => {
                     let mut buf = [0; 1];
                     match self.input.read(&mut buf) {
@@ -48,6 +49,7 @@ impl<R: io::Read, W: io::Write> Interpreter<R, W> {
                     }
                 }
                 Op::LoopEnd(pos) => i = pos - 1,
+                Op::OptSetValZero => mem[ptr] = 0,
             }
             i += 1;
         }
@@ -67,6 +69,8 @@ enum Op {
     ReadVal,
     LoopBegin(usize),
     LoopEnd(usize),
+
+    OptSetValZero,
 }
 
 fn opertions(code: &[u8]) -> Vec<Op> {
@@ -123,16 +127,27 @@ fn opertions(code: &[u8]) -> Vec<Op> {
             }
             b']' => {
                 if let Some(i) = loop_stack.pop() {
-                    ops[i] = Op::LoopBegin(ops.len());
-                    ops.push(Op::LoopEnd(i));
+                    if let Some(mut ops0) = optimize_loop(&ops[i + 1..ops.len()]) {
+                        ops.truncate(i);
+                        ops.append(&mut ops0);
+                    } else {
+                        ops[i] = Op::LoopBegin(ops.len());
+                        ops.push(Op::LoopEnd(i));
+                    }
                 } else {
                     panic!("corresponding '[' not found: {}", pos);
                 }
             }
-            b' ' | b'\n' | b'\r' | b'\t' => (),
-            _ => panic!("invalid operation: {}", pos),
+            _ => (),
         };
         pos += 1;
     }
     ops
+}
+
+fn optimize_loop(ops: &[Op]) -> Option<Vec<Op>> {
+    match ops {
+        [Op::DecVal(1)] => Some(vec![Op::OptSetValZero]),
+        _ => None,
+    }
 }
