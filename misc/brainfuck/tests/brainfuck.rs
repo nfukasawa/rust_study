@@ -20,7 +20,7 @@ fn test_brainfuck() {
     assert_eq!(case.2, String::from_utf8(output).unwrap());
 
     let end = start.elapsed();
-    println!("case {}: {}.{:09}", i, end.as_secs(), end.subsec_nanos() / 1_000_000);
+    println!("case {}: {}.{:09}", i, end.as_secs(), end.subsec_nanos() );
   }
 }
 
