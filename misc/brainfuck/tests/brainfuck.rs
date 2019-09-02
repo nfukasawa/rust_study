@@ -1,5 +1,7 @@
 use brainfuck::Interpreter;
 
+use std::time::Instant;
+
 #[test]
 fn test_brainfuck() {
   // (code, input, output)
@@ -9,15 +11,21 @@ fn test_brainfuck() {
     (FACTOR, "6825\n", "6825: 3 5 5 7 13\n"),
     (MANDELBROT, "", MANDELBROT_OUTPUT),
   ];
-  for case in cases {
+  for (i, case) in cases.iter().enumerate() {
+    let start = Instant::now();
+
     let mut output = Vec::new();
     let mut bf = Interpreter::new(case.1.as_bytes(), &mut output);
     bf.interpret(case.0.as_bytes());
     assert_eq!(case.2, String::from_utf8(output).unwrap());
+
+    let end = start.elapsed();
+    println!("case {}: {}.{:09}", i, end.as_secs(), end.subsec_nanos() / 1_000_000);
   }
 }
 
-// https://github.com/eliben/code-for-blog/tree/master/2017/bfjit/tests/testcases
+// https://github.com/eliben/code-for-blog/tree/master/2017/bfjit
+
 const HELLO_WORLD: &'static str = r#"
 [
     This program prints "Hello World!" and a newline to the screen, its
@@ -62,7 +70,6 @@ Pointer :   ^
 >++.                    And finally a newline from Cell #6
     "#;
 
-// https://github.com/eliben/code-for-blog/tree/master/2017/bfjit/tests/testcases
 const FACTOR: &'static str = r#"
 [
    Takes an integer from stdin and emits its factors to stdout
