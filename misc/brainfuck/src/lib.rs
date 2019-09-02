@@ -69,7 +69,7 @@ fn opertions(code: &[u8]) -> Vec<Op> {
                     };
                     pos += 1;
                 }
-                ops.push(Op::AddVal(v));                
+                ops.push(Op::AddVal(v));
             }
             b'.' => ops.push(Op::WriteVal),
             b',' => ops.push(Op::ReadVal),
@@ -102,17 +102,16 @@ fn optimize_loop(ops: &[Op]) -> Option<Vec<Op>> {
         // [-] [+]
         [Op::AddVal(1)] | [Op::AddVal(-1)] => Some(vec![Op::OptSetValZero]),
 
-        // [>>>+<<<-] [<<<+>>>-] [>>>-<<<-] [<<<->>>-]
-        [Op::MovPtr(n), Op::AddVal(x), Op::MovPtr(m), Op::AddVal(-1)] if *n == -*m => {
-            Some(vec![Op::OptMovVal(*n, *x)])
+        // [>>+<<-] [<<+>>-] [>>-<<-] [<<->>-] [>>+<<+] [<<+>>+] [>>-<<+] [<<->>+]
+        // [->>+<<] [-<<+>>] [->>-<<] [-<<->>] [+>>+<<] [+<<+>>] [+>>-<<] [+<<->>]
+        [Op::MovPtr(n), Op::AddVal(mul), Op::MovPtr(m), Op::AddVal(div)]
+        | [Op::AddVal(div), Op::MovPtr(n), Op::AddVal(mul), Op::MovPtr(m)]
+            if *n == -*m && mul % div == 0 =>
+        {
+            Some(vec![Op::OptMovVal(*n, *mul / -*div)])
         }
 
-        // [->>>+<<<] [-<<<+>>>] [->>>-<<<] [-<<<->>>]
-        [Op::AddVal(-1), Op::MovPtr(n), Op::AddVal(x), Op::MovPtr(m), ] if *n == -*m => {
-            Some(vec![Op::OptMovVal(*n, *x)])
-        }
-
-        // [>>>] [<<<]
+        // [>>] [<<]
         [Op::MovPtr(n)] => Some(vec![Op::OptSkipToZero(*n)]),
 
         _ => None,
@@ -123,9 +122,9 @@ fn exec<R: io::Read, W: io::Write>(ops: &Vec<Op>, input: &mut R, output: &mut W)
     let mut mem = [0 as u8; 32765];
     let mut ptr: usize = mem.len() / 2 + 1;
 
-    let mut i = 0;
-    while i < ops.len() {
-        match ops[i] {
+    let mut pc = 0;
+    while pc < ops.len() {
+        match ops[pc] {
             Op::MovPtr(n) => ptr = (ptr as isize + n) as usize,
             Op::AddVal(n) => mem[ptr] = (mem[ptr] as i16).wrapping_add(n) as u8,
             Op::WriteVal => match output.write(&[mem[ptr]]) {
@@ -139,26 +138,27 @@ fn exec<R: io::Read, W: io::Write>(ops: &Vec<Op>, input: &mut R, output: &mut W)
                     Ok(_) => (),
                     Err(err) => panic!(err),
                 }
-            },
+            }
             Op::LoopBegin(pos) => {
                 if mem[ptr] == 0 {
-                    i = pos;
+                    pc = pos;
                 }
-            },
-            Op::LoopEnd(pos) => i = pos - 1,
+            }
+            Op::LoopEnd(pos) => pc = pos - 1,
+
             Op::OptSetValZero => mem[ptr] = 0,
             Op::OptMovVal(n, x) => {
                 let to = (ptr as isize + n) as usize;
                 mem[to] = ((mem[to] as i16).wrapping_add(mem[ptr] as i16 * x)) as u8;
                 mem[ptr] = 0;
-            },
+            }
             Op::OptSkipToZero(n) => {
                 while mem[ptr] != 0 {
                     ptr = (ptr as isize + n) as usize;
                 }
-            },
+            }
         }
-        i += 1;
+        pc += 1;
     }
     if let Err(err) = output.flush() {
         panic!(err);
