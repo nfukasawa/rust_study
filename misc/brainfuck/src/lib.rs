@@ -21,22 +21,16 @@ impl<R: io::Read, W: io::Write> Interpreter<R, W> {
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 enum Op {
-    IncPtr(usize),
-    DecPtr(usize),
-    IncVal(u8),
-    DecVal(u8),
+    MovPtr(isize),
+    AddVal(i16),
     WriteVal,
     ReadVal,
     LoopBegin(usize),
     LoopEnd(usize),
 
     OptSetValZero,
-    OptAddValRight(usize, u8),
-    OptAddValLeft(usize, u8),
-    OptSubValRight(usize, u8),
-    OptSubValLeft(usize, u8),
-    OptSearchZeroRight(usize),
-    OptSearchZeroLeft(usize),
+    OptMovVal(isize, i16),
+    OptSkipToZero(isize),
 }
 
 fn opertions(code: &[u8]) -> Vec<Op> {
@@ -48,7 +42,7 @@ fn opertions(code: &[u8]) -> Vec<Op> {
     while pos < l {
         match code[pos] {
             b'>' | b'<' => {
-                let mut v: isize = 0;
+                let mut v = 0;
                 while pos < l {
                     v += match code[pos] {
                         b'>' => 1,
@@ -60,14 +54,10 @@ fn opertions(code: &[u8]) -> Vec<Op> {
                     };
                     pos += 1;
                 }
-                if v > 0 {
-                    ops.push(Op::IncPtr(v as usize));
-                } else if v < 0 {
-                    ops.push(Op::DecPtr(-v as usize));
-                }
+                ops.push(Op::MovPtr(v));
             }
             b'+' | b'-' => {
-                let mut v: i64 = 0;
+                let mut v: i16 = 0;
                 while pos < l {
                     v += match code[pos] {
                         b'+' => 1,
@@ -79,11 +69,7 @@ fn opertions(code: &[u8]) -> Vec<Op> {
                     };
                     pos += 1;
                 }
-                if v > 0 {
-                    ops.push(Op::IncVal(v as u8));
-                } else if v < 0 {
-                    ops.push(Op::DecVal(-v as u8));
-                }
+                ops.push(Op::AddVal(v));                
             }
             b'.' => ops.push(Op::WriteVal),
             b',' => ops.push(Op::ReadVal),
@@ -113,52 +99,21 @@ fn opertions(code: &[u8]) -> Vec<Op> {
 
 fn optimize_loop(ops: &[Op]) -> Option<Vec<Op>> {
     match ops {
-        // [-]
-        [Op::DecVal(1)] => Some(vec![Op::OptSetValZero]),
-        // [+]
-        [Op::IncVal(1)] => Some(vec![Op::OptSetValZero]),
+        // [-] [+]
+        [Op::AddVal(1)] | [Op::AddVal(-1)] => Some(vec![Op::OptSetValZero]),
 
-        // [>>>+<<<-]
-        [Op::IncPtr(n), Op::IncVal(x), Op::DecPtr(m), Op::DecVal(1)] if n == m => {
-            Some(vec![Op::OptAddValRight(*n, *x)])
-        }
-        // [->>>+<<<]
-        [Op::DecVal(1), Op::IncPtr(n), Op::IncVal(x), Op::DecPtr(m)] if n == m => {
-            Some(vec![Op::OptAddValRight(*n, *x)])
+        // [>>>+<<<-] [<<<+>>>-] [>>>-<<<-] [<<<->>>-]
+        [Op::MovPtr(n), Op::AddVal(x), Op::MovPtr(m), Op::AddVal(-1)] if *n == -*m => {
+            Some(vec![Op::OptMovVal(*n, *x)])
         }
 
-        // [<<<+>>>-]
-        [Op::DecPtr(n), Op::IncVal(x), Op::IncPtr(m), Op::DecVal(1)] if n == m => {
-            Some(vec![Op::OptAddValLeft(*n, *x)])
-        }
-        // [-<<<+>>>]
-        [Op::DecVal(1), Op::DecPtr(n), Op::IncVal(x), Op::IncPtr(m)] if n == m => {
-            Some(vec![Op::OptAddValLeft(*n, *x)])
+        // [->>>+<<<] [-<<<+>>>] [->>>-<<<] [-<<<->>>]
+        [Op::AddVal(-1), Op::MovPtr(n), Op::AddVal(x), Op::MovPtr(m), ] if *n == -*m => {
+            Some(vec![Op::OptMovVal(*n, *x)])
         }
 
-        // [>>>-<<<-]
-        [Op::IncPtr(n), Op::DecVal(x), Op::DecPtr(m), Op::DecVal(1)] if n == m => {
-            Some(vec![Op::OptSubValRight(*n, *x)])
-        }
-        // [->>>-<<<]
-        [Op::DecVal(1), Op::IncPtr(n), Op::DecVal(x), Op::DecPtr(m)] if n == m => {
-            Some(vec![Op::OptSubValRight(*n, *x)])
-        }
-
-        // [<<<->>>-]
-        [Op::DecPtr(n), Op::IncVal(x), Op::DecPtr(m), Op::DecVal(1)] if n == m => {
-            Some(vec![Op::OptSubValLeft(*n, *x)])
-        }
-        // [-<<<->>>]
-        [Op::DecVal(1), Op::DecPtr(n), Op::DecVal(x), Op::IncPtr(m)] if n == m => {
-            Some(vec![Op::OptSubValLeft(*n, *x)])
-        }
-
-        // [>>>]
-        [Op::IncPtr(n)] => Some(vec![Op::OptSearchZeroRight(*n)]),
-
-        // [<<<]
-        [Op::DecPtr(n)] => Some(vec![Op::OptSearchZeroLeft(*n)]),
+        // [>>>] [<<<]
+        [Op::MovPtr(n)] => Some(vec![Op::OptSkipToZero(*n)]),
 
         _ => None,
     }
@@ -171,10 +126,8 @@ fn exec<R: io::Read, W: io::Write>(ops: &Vec<Op>, input: &mut R, output: &mut W)
     let mut i = 0;
     while i < ops.len() {
         match ops[i] {
-            Op::IncPtr(n) => ptr += n,
-            Op::DecPtr(n) => ptr -= n,
-            Op::IncVal(n) => mem[ptr] = mem[ptr].wrapping_add(n),
-            Op::DecVal(n) => mem[ptr] = mem[ptr].wrapping_sub(n),
+            Op::MovPtr(n) => ptr = (ptr as isize + n) as usize,
+            Op::AddVal(n) => mem[ptr] = (mem[ptr] as i16).wrapping_add(n) as u8,
             Op::WriteVal => match output.write(&[mem[ptr]]) {
                 Err(err) => panic!(err),
                 _ => (),
@@ -186,40 +139,24 @@ fn exec<R: io::Read, W: io::Write>(ops: &Vec<Op>, input: &mut R, output: &mut W)
                     Ok(_) => (),
                     Err(err) => panic!(err),
                 }
-            }
+            },
             Op::LoopBegin(pos) => {
                 if mem[ptr] == 0 {
                     i = pos;
                 }
-            }
+            },
             Op::LoopEnd(pos) => i = pos - 1,
             Op::OptSetValZero => mem[ptr] = 0,
-            Op::OptAddValRight(n, x) => {
-                mem[ptr + n] = mem[ptr + n].wrapping_add(mem[ptr] * x);
+            Op::OptMovVal(n, x) => {
+                let to = (ptr as isize + n) as usize;
+                mem[to] = ((mem[to] as i16).wrapping_add(mem[ptr] as i16 * x)) as u8;
                 mem[ptr] = 0;
-            }
-            Op::OptAddValLeft(n, x) => {
-                mem[ptr - n] = mem[ptr - n].wrapping_add(mem[ptr] * x);
-                mem[ptr] = 0;
-            }
-            Op::OptSubValRight(n, x) => {
-                mem[ptr + n] = mem[ptr + n].wrapping_sub(mem[ptr] * x);
-                mem[ptr] = 0;
-            }
-            Op::OptSubValLeft(n, x) => {
-                mem[ptr - n] = mem[ptr - n].wrapping_sub(mem[ptr] * x);
-                mem[ptr] = 0;
-            }
-            Op::OptSearchZeroRight(n) => {
+            },
+            Op::OptSkipToZero(n) => {
                 while mem[ptr] != 0 {
-                    ptr += n;
+                    ptr = (ptr as isize + n) as usize;
                 }
-            }
-            Op::OptSearchZeroLeft(n) => {
-                while mem[ptr] != 0 {
-                    ptr -= n;
-                }
-            }
+            },
         }
         i += 1;
     }
