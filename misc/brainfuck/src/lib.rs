@@ -19,7 +19,7 @@ impl<R: io::Read, W: io::Write> Interpreter<R, W> {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 enum Op {
     MovPtr(isize),
     AddVal(i16),
@@ -28,9 +28,10 @@ enum Op {
     LoopBegin(usize),
     LoopEnd(usize),
 
-    OptSetValZero,
-    OptMovVal(isize, i16),
-    OptSkipToZero(isize),
+    ClearVal,
+    MoveMulVal(isize, i16),
+    MoveMulValN(Vec<(isize, i16)>),
+    SkipToZero(isize),
 }
 
 fn opertions(code: &[u8]) -> Vec<Op> {
@@ -99,22 +100,70 @@ fn opertions(code: &[u8]) -> Vec<Op> {
 
 fn optimize_loop(ops: &[Op]) -> Option<Vec<Op>> {
     match ops {
+        [] => return None,
+
         // [-] [+]
-        [Op::AddVal(1)] | [Op::AddVal(-1)] => Some(vec![Op::OptSetValZero]),
+        [Op::AddVal(1)] | [Op::AddVal(-1)] => Some(vec![Op::ClearVal]),
 
         // [>>+<<-] [<<+>>-] [>>-<<-] [<<->>-] [>>+<<+] [<<+>>+] [>>-<<+] [<<->>+]
         // [->>+<<] [-<<+>>] [->>-<<] [-<<->>] [+>>+<<] [+<<+>>] [+>>-<<] [+<<->>]
-        [Op::MovPtr(n), Op::AddVal(mul), Op::MovPtr(m), Op::AddVal(div)]
-        | [Op::AddVal(div), Op::MovPtr(n), Op::AddVal(mul), Op::MovPtr(m)]
-            if *n == -*m && mul % div == 0 =>
+        [Op::MovPtr(n), Op::AddVal(mul), Op::MovPtr(m), Op::AddVal(s)]
+        | [Op::AddVal(s), Op::MovPtr(n), Op::AddVal(mul), Op::MovPtr(m)]
+            if *n == -*m && s.abs() == 1 =>
         {
-            Some(vec![Op::OptMovVal(*n, *mul / -*div)])
+            Some(vec![Op::MoveMulVal(*n, -*s * *mul)])
         }
 
         // [>>] [<<]
-        [Op::MovPtr(n)] => Some(vec![Op::OptSkipToZero(*n)]),
+        [Op::MovPtr(n)] => Some(vec![Op::SkipToZero(*n)]),
 
-        _ => None,
+        _ => optimize_multi_move(ops),
+    }
+}
+
+// like [->+++>+++++++<<]
+fn optimize_multi_move(ops: &[Op]) -> Option<Vec<Op>> {
+    let ops0: &[Op];
+    let s: i16;
+    if let Some(Op::AddVal(n)) = ops.first() {
+        s = *n;
+        ops0 = &ops[1..];
+    } else if let Some(Op::AddVal(n)) = ops.last() {
+        s = *n;
+        ops0 = &ops[..ops.len() - 1];
+    } else {
+        return None;
+    }
+
+    if s.abs() != 1 {
+        return None;
+    }
+
+    let offset: isize;
+    if let Some(Op::MovPtr(n)) = ops0.last() {
+        offset = *n;
+    } else {
+        return None;
+    }
+
+    let ops1 = &ops0[..ops0.len() - 1];
+
+    let mut moves = Vec::new();
+    let mut pos = 0;
+    for chunk in ops1.chunks(2) {
+        match chunk {
+            [Op::MovPtr(n), Op::AddVal(mul)] => {
+                pos += *n;
+                moves.push((pos, -s * *mul));
+            }
+            _ => return None,
+        }
+    }
+
+    if offset + pos == 0 {
+        Some(vec![Op::MoveMulValN(moves)])
+    } else {
+        None
     }
 }
 
@@ -124,9 +173,9 @@ fn exec<R: io::Read, W: io::Write>(ops: &Vec<Op>, input: &mut R, output: &mut W)
 
     let mut pc = 0;
     while pc < ops.len() {
-        match ops[pc] {
-            Op::MovPtr(n) => ptr = (ptr as isize + n) as usize,
-            Op::AddVal(n) => mem[ptr] = (mem[ptr] as i16).wrapping_add(n) as u8,
+        match &ops[pc] {
+            Op::MovPtr(n) => ptr = (ptr as isize + *n) as usize,
+            Op::AddVal(n) => mem[ptr] = (mem[ptr] as i16).wrapping_add(*n) as u8,
             Op::WriteVal => match output.write(&[mem[ptr]]) {
                 Err(err) => panic!(err),
                 _ => (),
@@ -141,20 +190,29 @@ fn exec<R: io::Read, W: io::Write>(ops: &Vec<Op>, input: &mut R, output: &mut W)
             }
             Op::LoopBegin(pos) => {
                 if mem[ptr] == 0 {
-                    pc = pos;
+                    pc = *pos;
                 }
             }
-            Op::LoopEnd(pos) => pc = pos - 1,
+            Op::LoopEnd(pos) => pc = *pos - 1,
 
-            Op::OptSetValZero => mem[ptr] = 0,
-            Op::OptMovVal(n, x) => {
-                let to = (ptr as isize + n) as usize;
-                mem[to] = ((mem[to] as i16).wrapping_add(mem[ptr] as i16 * x)) as u8;
+            Op::ClearVal => mem[ptr] = 0,
+            Op::MoveMulVal(n, x) => {
+                let to = (ptr as isize + *n) as usize;
+                mem[to] = ((mem[to] as i16).wrapping_add(mem[ptr] as i16 * *x)) as u8;
                 mem[ptr] = 0;
             }
-            Op::OptSkipToZero(n) => {
+            Op::MoveMulValN(ps) => {
+                for p in ps.iter() {
+                    let offset = p.0;
+                    let mul = p.1;
+                    let to = (ptr as isize + offset) as usize;
+                    mem[to] = ((mem[to] as i16).wrapping_add(mem[ptr] as i16 * mul)) as u8;
+                }
+                mem[ptr] = 0;
+            }
+            Op::SkipToZero(n) => {
                 while mem[ptr] != 0 {
-                    ptr = (ptr as isize + n) as usize;
+                    ptr = (ptr as isize + *n) as usize;
                 }
             }
         }
