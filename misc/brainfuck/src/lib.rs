@@ -48,10 +48,11 @@ fn opertions(code: &[u8]) -> Vec<Op> {
                     match code[pos] {
                         b'>' => v += 1,
                         b'<' => v -= 1,
-                        _ => {
+                        b'+' | b'-' | b'.' | b',' | b'[' | b']' => {
                             pos -= 1;
                             break;
                         }
+                        _ => (),
                     };
                     pos += 1;
                 }
@@ -63,10 +64,11 @@ fn opertions(code: &[u8]) -> Vec<Op> {
                     match code[pos] {
                         b'+' => v += 1,
                         b'-' => v -= 1,
-                        _ => {
+                        b'>' | b'<' | b'.' | b',' | b'[' | b']' => {
                             pos -= 1;
                             break;
                         }
+                        _ => (),
                     };
                     pos += 1;
                 }
@@ -118,12 +120,12 @@ fn optimize_loop(ops: &[Op]) -> Option<Vec<Op>> {
         // [>>] [<<]
         [Op::MovPtr(n)] => Some(vec![Op::SkipToZero(*n)]),
 
-        _ => optimize_multi_move(ops),
+        _ => optimize_move_mul_n(ops),
     }
 }
 
 // like [->+++>+++++++<<]
-fn optimize_multi_move(ops: &[Op]) -> Option<Vec<Op>> {
+fn optimize_move_mul_n(ops: &[Op]) -> Option<Vec<Op>> {
     let ops0: &[Op];
     let s: i16;
     if let Some(Op::AddVal(_, n)) = ops.first() {
@@ -147,20 +149,20 @@ fn optimize_multi_move(ops: &[Op]) -> Option<Vec<Op>> {
 
     let ops1 = &ops0[..ops0.len() - 1];
 
-    let mut moves = Vec::new();
+    let mut params = Vec::new();
     let mut pos = 0;
     for chunk in ops1.chunks(2) {
         match chunk {
             [Op::MovPtr(n), Op::AddVal(_, mul)] => {
                 pos += *n;
-                moves.push((pos, -s * *mul));
+                params.push((pos, -s * *mul));
             }
             _ => return None,
         }
     }
 
     if offset + pos == 0 {
-        Some(vec![Op::MoveMulValN(0, moves)])
+        Some(vec![Op::MoveMulValN(0, params)])
     } else {
         None
     }
@@ -233,8 +235,8 @@ fn exec<R: io::Read, W: io::Write>(ops: &Vec<Op>, input: &mut R, output: &mut W)
                 let mut buf = [0; 1];
                 match input.read(&mut buf) {
                     Ok(1) => mem[offset_ptr(ptr, *offset)] = buf[0],
-                    Ok(_) => (),
                     Err(err) => panic!(err),
+                    _ => panic!("read failed"),
                 }
             }
             Op::LoopBegin(p) => {
@@ -243,7 +245,6 @@ fn exec<R: io::Read, W: io::Write>(ops: &Vec<Op>, input: &mut R, output: &mut W)
                 }
             }
             Op::LoopEnd(p) => pc = *p - 1,
-
             Op::ClearVal(offset) => mem[offset_ptr(ptr, *offset)] = 0,
             Op::MoveMulVal(offset, n, mul) => {
                 let p = offset_ptr(ptr, *offset);
@@ -285,4 +286,38 @@ fn mul_val(v: u8, m: i16) -> i16 {
 #[inline]
 fn offset_ptr(ptr: usize, d: isize) -> usize {
     (ptr as isize + d) as usize
+}
+
+#[allow(dead_code)]
+impl Op {
+    fn ch(&self) -> char {
+        match self {
+            Op::MovPtr(x) => {
+                if *x > 0 {
+                    '>'
+                } else {
+                    '<'
+                }
+            }
+            Op::AddVal(_, x) => {
+                if *x > 0 {
+                    '+'
+                } else {
+                    '-'
+                }
+            }
+            Op::WriteVal(_) => '.',
+            Op::ReadVal(_) => ',',
+            Op::LoopBegin(_) => '[',
+            Op::LoopEnd(_) => ']',
+            Op::ClearVal(_) => 'c',
+            Op::MoveMulVal(_, _, _) => 'm',
+            Op::MoveMulValN(_, _) => 'M',
+            Op::SkipToZero(_) => 's',
+        }
+    }
+}
+#[allow(dead_code)]
+fn to_str(ops: &[Op]) -> String {
+    ops.iter().map(|op| op.ch()).collect()
 }
