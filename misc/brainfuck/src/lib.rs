@@ -56,7 +56,9 @@ fn opertions(code: &[u8]) -> Vec<Op> {
                     };
                     pos += 1;
                 }
-                ops.push(Op::MovPtr(v));
+                if v != 0 {
+                    ops.push(Op::MovPtr(v));
+                }
             }
             b'+' | b'-' => {
                 let mut v: i16 = 0;
@@ -72,7 +74,9 @@ fn opertions(code: &[u8]) -> Vec<Op> {
                     };
                     pos += 1;
                 }
-                ops.push(Op::AddVal(0, v));
+                if v != 0 {
+                    ops.push(Op::AddVal(0, v));
+                }
             }
             b'.' => ops.push(Op::WriteVal(0)),
             b',' => ops.push(Op::ReadVal(0)),
