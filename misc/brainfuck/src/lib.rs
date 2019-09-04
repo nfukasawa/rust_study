@@ -7,10 +7,7 @@ pub struct Interpreter<R: io::Read, W: io::Write> {
 
 impl<R: io::Read, W: io::Write> Interpreter<R, W> {
     pub fn new(input: R, output: W) -> Self {
-        Interpreter {
-            input: input,
-            output: output,
-        }
+        Interpreter { input, output }
     }
 
     pub fn interpret(&mut self, code: &[u8]) {
@@ -107,7 +104,7 @@ fn opertions(code: &[u8]) -> Vec<Op> {
 
 fn optimize_loop(ops: &[Op]) -> Option<Vec<Op>> {
     match ops {
-        [] => return None,
+        [] => None,
 
         // [-] [+]
         [Op::AddVal(_, 1)] | [Op::AddVal(_, -1)] => Some(vec![Op::ClearVal(0)]),
@@ -219,7 +216,7 @@ fn optimize_offsets(ops: &[Op]) -> Vec<Op> {
     optimized
 }
 
-fn exec<R: io::Read, W: io::Write>(ops: &Vec<Op>, input: &mut R, output: &mut W) {
+fn exec<R: io::Read, W: io::Write>(ops: &[Op], input: &mut R, output: &mut W) {
     let mut mem = [0 as u8; 65535];
     let mut ptr: usize = mem.len() / 2 + 1;
 
@@ -231,10 +228,11 @@ fn exec<R: io::Read, W: io::Write>(ops: &Vec<Op>, input: &mut R, output: &mut W)
                 let p = offset_ptr(ptr, *offset);
                 mem[p] = add_val_wrap(mem[p], *v);
             }
-            Op::WriteVal(offset) => match output.write(&[mem[offset_ptr(ptr, *offset)]]) {
-                Err(err) => panic!(err),
-                _ => (),
-            },
+            Op::WriteVal(offset) => {
+                if let Err(err) = output.write(&[mem[offset_ptr(ptr, *offset)]]) {
+                    panic!(err);
+                }
+            }
             Op::ReadVal(offset) => {
                 let mut buf = [0; 1];
                 match input.read(&mut buf) {
@@ -279,12 +277,12 @@ fn exec<R: io::Read, W: io::Write>(ops: &Vec<Op>, input: &mut R, output: &mut W)
 
 #[inline]
 fn add_val_wrap(v: u8, d: i16) -> u8 {
-    (v as i16).wrapping_add(d) as u8
+    i16::from(v).wrapping_add(d) as u8
 }
 
 #[inline]
 fn mul_val(v: u8, m: i16) -> i16 {
-    v as i16 * m
+    i16::from(v) * m
 }
 
 #[inline]
