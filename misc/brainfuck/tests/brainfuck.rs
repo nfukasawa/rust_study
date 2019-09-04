@@ -4,24 +4,24 @@ use std::time::Instant;
 
 #[test]
 fn test_brainfuck() {
-  // (code, input, output)
-  let cases: Vec<(&str, &str, &str)> = vec![
-    (",.,.,.,.", "hoge", "hoge"),
-    (HELLO_WORLD, "", "Hello World!\n"),
-    (FACTOR, "6825\n", "6825: 3 5 5 7 13\n"),
-    (MANDELBROT, "", MANDELBROT_OUTPUT),
-  ];
-  for (i, case) in cases.iter().enumerate() {
-    let start = Instant::now();
+    // (code, input, output)
+    let cases: Vec<(&str, &str, &str)> = vec![
+        (",.,.,.,.", "hoge", "hoge"),
+        (HELLO_WORLD, "", "Hello World!\n"),
+        (FACTOR, "6825\n", "6825: 3 5 5 7 13\n"),
+        (MANDELBROT, "", MANDELBROT_OUTPUT),
+    ];
+    for (i, case) in cases.iter().enumerate() {
+        let start = Instant::now();
 
-    let mut output = Vec::new();
-    let mut bf = Interpreter::new(case.1.as_bytes(), &mut output);
-    bf.interpret(case.0.as_bytes());
-    assert_eq!(case.2, String::from_utf8(output).unwrap());
+        let mut output = Vec::new();
+        let mut bf = Interpreter::new(case.1.as_bytes(), &mut output);
+        bf.interpret(case.0.as_bytes());
+        assert_eq!(case.2, String::from_utf8(output).unwrap());
 
-    let end = start.elapsed();
-    println!("case {}: {}.{:09}", i, end.as_secs(), end.subsec_nanos() );
-  }
+        let end = start.elapsed();
+        println!("case {}: {}.{:09}", i, end.as_secs(), end.subsec_nanos());
+    }
 }
 
 // https://github.com/eliben/code-for-blog/tree/master/2017/bfjit

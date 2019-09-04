@@ -99,7 +99,7 @@ fn opertions(code: &[u8]) -> Vec<Op> {
         pos += 1;
     }
 
-    optimize_offsets(ops.as_ref())
+    optimize_offsets(&ops)
 }
 
 fn optimize_loop(ops: &[Op]) -> Option<Vec<Op>> {
@@ -109,6 +109,9 @@ fn optimize_loop(ops: &[Op]) -> Option<Vec<Op>> {
         // [-] [+]
         [Op::AddVal(_, 1)] | [Op::AddVal(_, -1)] => Some(vec![Op::ClearVal(0)]),
 
+        // [>>] [<<]
+        [Op::MovPtr(n)] => Some(vec![Op::SkipToZero(*n)]),
+
         // [>>+<<-] [<<+>>-] [>>-<<-] [<<->>-] [>>+<<+] [<<+>>+] [>>-<<+] [<<->>+]
         // [->>+<<] [-<<+>>] [->>-<<] [-<<->>] [+>>+<<] [+<<+>>] [+>>-<<] [+<<->>]
         [Op::MovPtr(n), Op::AddVal(_, mul), Op::MovPtr(m), Op::AddVal(_, s)]
@@ -117,9 +120,6 @@ fn optimize_loop(ops: &[Op]) -> Option<Vec<Op>> {
         {
             Some(vec![Op::MoveMulVal(0, *n, -*s * *mul)])
         }
-
-        // [>>] [<<]
-        [Op::MovPtr(n)] => Some(vec![Op::SkipToZero(*n)]),
 
         _ => optimize_move_mul_n(ops),
     }
@@ -217,7 +217,7 @@ fn optimize_offsets(ops: &[Op]) -> Vec<Op> {
 }
 
 fn exec<R: io::Read, W: io::Write>(ops: &[Op], input: &mut R, output: &mut W) {
-    let mut mem = [0 as u8; 65535];
+    let mut mem = vec![0 as u8; 65535];
     let mut ptr: usize = mem.len() / 2 + 1;
 
     let mut pc = 0;
