@@ -2,77 +2,65 @@ use super::operations::Op;
 use std::io;
 
 pub struct Interpreter<R: io::Read, W: io::Write> {
-    mem: Vec<u8>,
-    ptr: usize,
     input: R,
     output: W,
 }
 
 impl<R: io::Read, W: io::Write> Interpreter<R, W> {
     pub fn new(input: R, output: W) -> Self {
-        let size = 65535;
-        Interpreter {
-            mem: vec![0 as u8; size],
-            ptr: size / 2 + 1,
-            input,
-            output,
-        }
+        Interpreter { input, output }
     }
 
     pub fn interpret(&mut self, ops: &[Op]) {
+        let size = 65535;
+        let mut mem = vec![0 as u8; size];
+        let mut ptr = size / 2 + 1;
+
         let mut pc = 0;
         while pc < ops.len() {
             match &ops[pc] {
-                Op::MovPtr(n) => self.ptr = offset_ptr(self.ptr, *n),
+                Op::MovPtr(n) => ptr = offset_ptr(ptr, *n),
                 Op::AddVal(offset, v) => {
-                    let p = offset_ptr(self.ptr, *offset);
-                    self.mem[p] = add_val_wrap(self.mem[p], *v);
+                    let p = offset_ptr(ptr, *offset);
+                    mem[p] = add_val_wrap(mem[p], *v);
                 }
                 Op::WriteVal(offset) => {
-                    if let Err(err) = self
-                        .output
-                        .write(&[self.mem[offset_ptr(self.ptr, *offset)]])
-                    {
+                    if let Err(err) = self.output.write(&[mem[offset_ptr(ptr, *offset)]]) {
                         panic!(err);
                     }
                 }
                 Op::ReadVal(offset) => {
                     let mut buf = [0; 1];
                     match self.input.read(&mut buf) {
-                        Ok(1) => self.mem[offset_ptr(self.ptr, *offset)] = buf[0],
+                        Ok(1) => mem[offset_ptr(ptr, *offset)] = buf[0],
                         Err(err) => panic!(err),
                         _ => panic!("read failed"),
                     }
                 }
                 Op::LoopBegin(p) => {
-                    if self.mem[self.ptr] == 0 {
+                    if mem[ptr] == 0 {
                         pc = *p;
                     }
                 }
                 Op::LoopEnd(p) => pc = *p - 1,
-                Op::Loop(inner) => {
-                    while self.mem[self.ptr] != 0 {
-                        self.interpret(inner);
-                    }
-                }
-                Op::ClearVal(offset) => self.mem[offset_ptr(self.ptr, *offset)] = 0,
+                Op::ClearVal(offset) => mem[offset_ptr(ptr, *offset)] = 0,
                 Op::MoveMulVal(offset, n, mul) => {
-                    let p = offset_ptr(self.ptr, *offset);
+                    let p = offset_ptr(ptr, *offset);
                     let to = offset_ptr(p, *n);
-                    self.mem[to] = add_val_wrap(self.mem[to], mul_val(self.mem[p], *mul));
-                    self.mem[p] = 0;
+                    mem[to] = add_val_wrap(mem[to], mul_val(mem[p], *mul));
+                    mem[p] = 0;
                 }
                 Op::MoveMulValN(offset, params) => {
-                    let p = offset_ptr(self.ptr, *offset);
+                    let p = offset_ptr(ptr, *offset);
                     for (n, mul) in params.iter() {
                         let to = offset_ptr(p, *n);
-                        self.mem[to] = add_val_wrap(self.mem[to], mul_val(self.mem[p], *mul));
+                        mem[to] = add_val_wrap(mem[to], mul_val(mem[p], *mul));
                     }
-                    self.mem[p] = 0;
+                    mem[p] = 0;
                 }
                 Op::SkipToZero(n) => {
-                    while self.mem[self.ptr] != 0 {
-                        self.ptr = offset_ptr(self.ptr, *n);
+                    while mem[ptr] != 0 {
+                        ptr = offset_ptr(ptr, *n);
                     }
                 }
             }

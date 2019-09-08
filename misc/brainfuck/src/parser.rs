@@ -1,39 +1,35 @@
 use super::operations::Op;
 
 pub struct Parser {
-    pos: usize,
 }
 
 impl Parser {
     pub fn new() -> Self {
-        Parser { pos: 0 }
+        Parser {  }
     }
 
     pub fn parse(&mut self, code: &[u8]) -> Vec<Op> {
-        self.pos = 0;
-        self.parse_loop(code, None)
-    }
-
-    fn parse_loop(&mut self, code: &[u8], loop_from: Option<usize>) -> Vec<Op> {
+        
         let l = code.len();
         let mut ops = Vec::with_capacity(l);
         let mut loop_stack = Vec::new();
 
-        while self.pos < l {
-            match code[self.pos] {
+        let mut pos = 0;
+        while pos < l {
+            match code[pos] {
                 b'>' | b'<' => {
                     let mut v = 0;
-                    while self.pos < l {
-                        match code[self.pos] {
+                    while pos < l {
+                        match code[pos] {
                             b'>' => v += 1,
                             b'<' => v -= 1,
                             b'+' | b'-' | b'.' | b',' | b'[' | b']' => {
-                                self.pos -= 1;
+                                pos -= 1;
                                 break;
                             }
                             _ => (),
                         };
-                        self.pos += 1;
+                        pos += 1;
                     }
                     if v != 0 {
                         ops.push(Op::MovPtr(v));
@@ -41,17 +37,17 @@ impl Parser {
                 }
                 b'+' | b'-' => {
                     let mut v: i16 = 0;
-                    while self.pos < l {
-                        match code[self.pos] {
+                    while pos < l {
+                        match code[pos] {
                             b'+' => v += 1,
                             b'-' => v -= 1,
                             b'>' | b'<' | b'.' | b',' | b'[' | b']' => {
-                                self.pos -= 1;
+                                pos -= 1;
                                 break;
                             }
                             _ => (),
                         };
-                        self.pos += 1;
+                        pos += 1;
                     }
                     if v != 0 {
                         ops.push(Op::AddVal(0, v));
@@ -74,26 +70,11 @@ impl Parser {
                             ops.push(Op::LoopEnd(pc));
                         }
                     },
-                    None => panic!("corresponding '[' not found: {}", self.pos),
+                    None => panic!("corresponding '[' not found: {}", pos),
                 },
-                /*
-                b'[' => {
-                    self.pos += 1;
-                    let inner = self.parse_loop(code, Some(self.pos - 1));
-                    if let Some(mut optimized) = optimize_loop(&inner) {
-                        ops.append(&mut optimized);
-                    } else {
-                        ops.push(Op::Loop(inner));
-                    }
-                }
-                b']' => match loop_from {
-                    Some(_) => break,
-                    None => panic!("corresponding '[' not found: {}", self.pos),
-                },
-                */
                 _ => (),
             };
-            self.pos += 1;
+            pos += 1;
         }
 
         optimize_offsets(&ops)
@@ -199,13 +180,6 @@ fn optimize_offsets(ops: &[Op]) -> Vec<Op> {
                     None => panic!("corresponding '[' not found"),
                 }
             },
-            Op::Loop(ops) => {
-                if offset != 0 {
-                    optimized.push(Op::MovPtr(offset));
-                    offset = 0;
-                }
-                optimized.push(Op::Loop(ops.clone()));
-            }
             Op::ClearVal(_) => optimized.push(Op::ClearVal(offset)),
             Op::MoveMulVal(_, n, mul) => optimized.push(Op::MoveMulVal(offset, *n, *mul)),
             Op::MoveMulValN(_, params) => optimized.push(Op::MoveMulValN(offset, params.clone())),
@@ -246,7 +220,6 @@ impl std::string::ToString for Op {
             Op::ReadVal(_) => ",".to_string(),
             Op::LoopBegin(_) => '['.to_string(),
             Op::LoopEnd(_) => ']'.to_string(),
-            Op::Loop(ops) => format!("[{}]", to_str(ops)),
             Op::ClearVal(_) => "c".to_string(),
             Op::MoveMulVal(_, _, _) => "m".to_string(),
             Op::MoveMulValN(_, _) => "M".to_string(),

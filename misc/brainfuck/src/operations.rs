@@ -6,7 +6,6 @@ pub enum Op {
     ReadVal(isize),
     LoopBegin(usize),
     LoopEnd(usize),
-    Loop(Vec<Op>),
 
     ClearVal(isize),
     MoveMulVal(isize, isize, i16),
