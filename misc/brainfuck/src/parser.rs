@@ -1,15 +1,13 @@
 use super::operations::Op;
 
-pub struct Parser {
-}
+pub struct Parser {}
 
 impl Parser {
     pub fn new() -> Self {
-        Parser {  }
+        Parser {}
     }
 
     pub fn parse(&mut self, code: &[u8]) -> Vec<Op> {
-        
         let l = code.len();
         let mut ops = Vec::with_capacity(l);
         let mut loop_stack = Vec::new();
@@ -179,7 +177,7 @@ fn optimize_offsets(ops: &[Op]) -> Vec<Op> {
                     }
                     None => panic!("corresponding '[' not found"),
                 }
-            },
+            }
             Op::ClearVal(_) => optimized.push(Op::ClearVal(offset)),
             Op::MoveMulVal(_, n, mul) => optimized.push(Op::MoveMulVal(offset, *n, *mul)),
             Op::MoveMulValN(_, params) => optimized.push(Op::MoveMulValN(offset, params.clone())),

@@ -2,39 +2,39 @@ use brainfuck::eval;
 use std::time::Instant;
 
 fn test_brainfuck(name: &str, code: &str, input: &str, result: &str) {
-  let mut output = Vec::new();
+    let mut output = Vec::new();
 
-  let start = Instant::now();
-  eval(code.as_bytes(), input.as_bytes(), &mut output);
-  let end = start.elapsed();
+    let start = Instant::now();
+    eval(code.as_bytes(), input.as_bytes(), &mut output);
+    let end = start.elapsed();
 
-  assert_eq!(result, String::from_utf8(output).unwrap());
-  println!(
-    "duration({}): {}.{:09}",
-    name,
-    end.as_secs(),
-    end.subsec_nanos()
-  );
+    assert_eq!(result, String::from_utf8(output).unwrap());
+    println!(
+        "duration({}): {}.{:09}",
+        name,
+        end.as_secs(),
+        end.subsec_nanos()
+    );
 }
 
 #[test]
 fn test_inout() {
-  test_brainfuck("inoout", ",.,.,.,.", "hoge", "hoge");
+    test_brainfuck("inoout", ",.,.,.,.", "hoge", "hoge");
 }
 
 #[test]
 fn test_hello_world() {
-  test_brainfuck("hello world", HELLO_WORLD, "", "Hello World!\n");
+    test_brainfuck("hello world", HELLO_WORLD, "", "Hello World!\n");
 }
 
 #[test]
 fn test_factor() {
-  test_brainfuck("factor", FACTOR, "6825\n", "6825: 3 5 5 7 13\n");
+    test_brainfuck("factor", FACTOR, "6825\n", "6825: 3 5 5 7 13\n");
 }
 
 #[test]
 fn test_mandelbrot() {
-  test_brainfuck("mandelbrot", MANDELBROT, "", MANDELBROT_OUTPUT);
+    test_brainfuck("mandelbrot", MANDELBROT, "", MANDELBROT_OUTPUT);
 }
 
 // https://github.com/eliben/code-for-blog/tree/master/2017/bfjit
