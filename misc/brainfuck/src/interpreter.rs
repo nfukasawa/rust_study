@@ -13,7 +13,7 @@ impl<R: io::Read, W: io::Write> Interpreter<R, W> {
 
     pub fn interpret(&mut self, ops: &[Op]) {
         let size = 65535;
-        let mut mem = vec![0 as u8; size];
+        let mut mem = vec![0u8; size];
         let mut ptr = size / 2 + 1;
 
         let mut pc = 0;
