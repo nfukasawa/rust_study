@@ -20,31 +20,33 @@ impl JIT {
         if cfg!(windows) {
             unimplemented!();
         }
+        let input = Box::new(input);
+        let output = Box::new(output);
 
         let module = {
             let mut builder = SimpleJITBuilder::new(default_libcall_names());
 
-            let input_ptr: *mut R = &mut *Box::new(input);
-            fn readbyte<R: io::Read>(input_ptr: i64) -> i8 {
-                let input = input_ptr as *mut R;
-                let mut buf = [0; 1];
-                unsafe {
-                    (*input).read(&mut buf).unwrap();
+            {
+                let input_ptr = Box::into_raw(input);
+                fn readbyte<R: io::Read>(input_ptr: i64) -> i8 {
+                    let mut input = unsafe { Box::from_raw(input_ptr as *mut R) };
+                    let mut buf = [0; 1];
+                    input.read(&mut buf).unwrap();
+                    buf[0] as i8
                 }
-                buf[0] as i8
+                builder.symbol("input", input_ptr as *const u8);
+                builder.symbol("readbyte", readbyte::<R> as *const u8);
             }
-            builder.symbol("input", input_ptr as *const u8);
-            builder.symbol("readbyte", readbyte::<R> as *const u8);
 
-            let output_ptr: *mut W = &mut *Box::new(output);
-            fn writebyte<W: io::Write>(output_ptr: i64, ch: i8) {
-                let output = output_ptr as *mut W;
-                unsafe {
-                    (*output).write(&mut [ch as u8]).unwrap();
+            {
+                let output_ptr = Box::into_raw(output);
+                fn writebyte<W: io::Write>(output_ptr: i64, ch: i8) {
+                    let mut output = unsafe { Box::from_raw(output_ptr as *mut W) };
+                    output.write(&[ch as u8]).unwrap();
                 }
+                builder.symbol("output", output_ptr as *const u8);
+                builder.symbol("writebyte", writebyte::<W> as *const u8);
             }
-            builder.symbol("output", output_ptr as *const u8);
-            builder.symbol("writebyte", writebyte::<W> as *const u8);
 
             Module::new(builder)
         };
@@ -188,8 +190,22 @@ impl<'a> FunctionTranslator<'a> {
             match op {
                 Op::MovPtr(n) => {}
                 Op::AddVal(offset, v) => {}
-                Op::WriteVal(offset) => {}
-                Op::ReadVal(offset) => {}
+                Op::WriteVal(offset) => {
+                    // TODO: use ofset
+                    let p = self.builder.use_var(self.ptr);
+                    let p = self.builder.ins().iadd(self.mem, p);
+                    let v = self.builder.ins().load(types::I8, MemFlags::new(), p, 0);
+                    self.builder.ins().call(self.writebyte, &[self.output, v]);
+                }
+                Op::ReadVal(offset) => {
+                    // TODO: use ofset
+                    let call = self.builder.ins().call(self.readbyte, &[self.input]);
+                    let result = self.builder.inst_results(call)[0];
+
+                    let p = self.builder.use_var(self.ptr);
+                    let p = self.builder.ins().iadd(self.mem, p);
+                    self.builder.ins().store(MemFlags::new(), result, p, 0);
+                }
                 Op::LoopBegin(p) => {}
                 Op::LoopEnd(p) => {}
                 Op::ClearVal(offset) => {}
