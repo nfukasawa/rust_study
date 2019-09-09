@@ -8,10 +8,10 @@ pub struct Interpreter<R: io::Read, W: io::Write> {
 
 impl<R: io::Read, W: io::Write> Interpreter<R, W> {
     pub fn new(input: R, output: W) -> Self {
-        Interpreter { input, output }
+        Self { input, output }
     }
 
-    pub fn interpret(&mut self, ops: &[Op]) {
+    pub fn exec(&mut self, ops: &[Op]) {
         let size = 65535;
         let mut mem = vec![0u8; size];
         let mut ptr = size / 2 + 1;

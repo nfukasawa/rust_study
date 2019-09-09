@@ -4,7 +4,7 @@ pub struct Parser {}
 
 impl Parser {
     pub fn new() -> Self {
-        Parser {}
+        Self {}
     }
 
     pub fn parse(&mut self, code: &[u8]) -> Vec<Op> {
