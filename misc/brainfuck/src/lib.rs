@@ -16,5 +16,5 @@ pub fn eval<R: io::Read, W: io::Write>(code: &[u8], input: R, output: W) {
 
 pub fn eval_jit<R: io::Read, W: io::Write>(code: &[u8], input: R, output: W) {
     let ops = Parser::new().parse(code);
-    JIT::new(input, output).exec(&ops);
+    JIT::new(&mut Box::new(input), &mut Box::new(output)).exec(&ops);
 }

@@ -38,12 +38,10 @@ fn test_inout() {
   test_brainfuck_interpreter("inoout", ",.,.,.,.", "hoge", "hoge");
 }
 
-/*
 #[test]
 fn test_inout_jit() {
   test_brainfuck_jit("inoout", ",.,.,.,.", "hoge", "hoge");
 }
-*/
 
 #[test]
 fn test_hello_world() {

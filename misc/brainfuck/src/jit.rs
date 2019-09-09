@@ -16,22 +16,20 @@ pub struct JIT {
 }
 
 impl JIT {
-    pub fn new<R: io::Read, W: io::Write>(input: R, output: W) -> Self {
+    pub fn new<R: io::Read, W: io::Write>(input: &mut Box<R>, output: &mut Box<W>) -> Self {
         if cfg!(windows) {
             unimplemented!();
         }
-        let input = Box::new(input);
-        let output = Box::new(output);
 
         let module = {
             let mut builder = SimpleJITBuilder::new(default_libcall_names());
 
             {
-                let input_ptr = Box::into_raw(input);
+                let input_ptr: *mut R = &mut *(*input);
                 fn readbyte<R: io::Read>(input_ptr: i64) -> i8 {
-                    let mut input = unsafe { Box::from_raw(input_ptr as *mut R) };
+                    let input = input_ptr as *mut R;
                     let mut buf = [0; 1];
-                    input.read(&mut buf).unwrap();
+                    unsafe { (*input).read(&mut buf).unwrap() };
                     buf[0] as i8
                 }
                 builder.symbol("input", input_ptr as *const u8);
@@ -39,10 +37,10 @@ impl JIT {
             }
 
             {
-                let output_ptr = Box::into_raw(output);
+                let output_ptr: *mut W = &mut *(*output);
                 fn writebyte<W: io::Write>(output_ptr: i64, ch: i8) {
-                    let mut output = unsafe { Box::from_raw(output_ptr as *mut W) };
-                    output.write(&[ch as u8]).unwrap();
+                    let output = output_ptr as *mut W;
+                    unsafe { (*output).write(&[ch as u8]).unwrap() };
                 }
                 builder.symbol("output", output_ptr as *const u8);
                 builder.symbol("writebyte", writebyte::<W> as *const u8);
