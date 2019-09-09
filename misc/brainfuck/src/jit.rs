@@ -6,6 +6,7 @@ use cranelift::prelude::*;
 use cranelift_module::{default_libcall_names, DataContext, Linkage, Module};
 use cranelift_simplejit::{SimpleJITBackend, SimpleJITBuilder};
 
+type Handle = usize;
 const MEM_SIZE: usize = 65535;
 
 pub struct JIT {
@@ -23,10 +24,9 @@ impl JIT {
 
         let module = {
             let mut builder = SimpleJITBuilder::new(default_libcall_names());
-
             {
                 let input_ptr: *mut R = &mut *(*input);
-                fn readbyte<R: io::Read>(input_ptr: i64) -> i8 {
+                fn readbyte<R: io::Read>(input_ptr: Handle) -> i8 {
                     let input = input_ptr as *mut R;
                     let mut buf = [0; 1];
                     unsafe { (*input).read(&mut buf).unwrap() };
@@ -38,7 +38,7 @@ impl JIT {
 
             {
                 let output_ptr: *mut W = &mut *(*output);
-                fn writebyte<W: io::Write>(output_ptr: i64, ch: i8) {
+                fn writebyte<W: io::Write>(output_ptr: Handle, ch: i8) {
                     let output = output_ptr as *mut W;
                     unsafe { (*output).write(&[ch as u8]).unwrap() };
                 }
