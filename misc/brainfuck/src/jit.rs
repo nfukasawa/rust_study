@@ -26,11 +26,11 @@ impl JIT {
             let mut builder = SimpleJITBuilder::new(default_libcall_names());
             {
                 let input_ptr: *mut R = &mut *(*input);
-                fn readbyte<R: io::Read>(input_ptr: Handle) -> i8 {
+                fn readbyte<R: io::Read>(input_ptr: Handle) -> u8 {
                     let input = input_ptr as *mut R;
                     let mut buf = [0; 1];
                     unsafe { (*input).read(&mut buf).unwrap() };
-                    buf[0] as i8
+                    buf[0]
                 }
                 builder.symbol("input", input_ptr as *const u8);
                 builder.symbol("readbyte", readbyte::<R> as *const u8);
@@ -38,9 +38,9 @@ impl JIT {
 
             {
                 let output_ptr: *mut W = &mut *(*output);
-                fn writebyte<W: io::Write>(output_ptr: Handle, ch: i8) {
+                fn writebyte<W: io::Write>(output_ptr: Handle, ch: u8) {
                     let output = output_ptr as *mut W;
-                    unsafe { (*output).write(&[ch as u8]).unwrap() };
+                    unsafe { (*output).write(&[ch]).unwrap() };
                 }
                 builder.symbol("output", output_ptr as *const u8);
                 builder.symbol("writebyte", writebyte::<W> as *const u8);
