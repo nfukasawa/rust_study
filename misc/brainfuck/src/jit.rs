@@ -6,7 +6,6 @@ use cranelift::prelude::*;
 use cranelift_module::{default_libcall_names, DataContext, Linkage, Module};
 use cranelift_simplejit::{SimpleJITBackend, SimpleJITBuilder};
 
-type Handle = usize;
 const MEM_SIZE: usize = 65535;
 
 pub struct JIT {
@@ -26,8 +25,7 @@ impl JIT {
             let mut builder = SimpleJITBuilder::new(default_libcall_names());
             {
                 let input_ptr: *mut R = &mut *(*input);
-                fn readbyte<R: io::Read>(input_ptr: Handle) -> u8 {
-                    let input = input_ptr as *mut R;
+                fn readbyte<R: io::Read>(input: *mut R) -> u8 {
                     let mut buf = [0; 1];
                     unsafe { (*input).read(&mut buf).unwrap() };
                     buf[0]
@@ -38,8 +36,7 @@ impl JIT {
 
             {
                 let output_ptr: *mut W = &mut *(*output);
-                fn writebyte<W: io::Write>(output_ptr: Handle, ch: u8) {
-                    let output = output_ptr as *mut W;
+                fn writebyte<W: io::Write>(output: *mut W, ch: u8) {
                     unsafe { (*output).write(&[ch]).unwrap() };
                 }
                 builder.symbol("output", output_ptr as *const u8);
@@ -152,7 +149,6 @@ impl JIT {
         builder.def_var(ptr, zero);
 
         let mut translator = FunctionTranslator {
-            pointer_type,
             builder,
             input,
             output,
@@ -169,9 +165,7 @@ impl JIT {
     }
 }
 
-#[allow(dead_code, unused_variables)]
 struct FunctionTranslator<'a> {
-    pointer_type: types::Type,
     builder: FunctionBuilder<'a>,
     input: Value,
     output: Value,
@@ -181,28 +175,30 @@ struct FunctionTranslator<'a> {
     ptr: Variable,
 }
 
-#[allow(dead_code, unused_variables)]
 impl<'a> FunctionTranslator<'a> {
     fn translate(&mut self, ops: &[Op]) {
         for op in ops {
             match op {
-                Op::MovPtr(n) => {}
-                Op::AddVal(offset, v) => {}
+                Op::MovPtr(n) => {
+                    let p = self.ptr();
+                    let v = self.add_imm(p, *n as i64);
+                    self.builder.def_var(self.ptr, v);
+                }
+                Op::AddVal(offset, n) => {
+                    let p = self.addr();
+                    let v = self.load(p, *offset);
+                    let v = self.add_imm(v, i64::from(*n));
+                    self.store(v, p, *offset);
+                }
                 Op::WriteVal(offset) => {
-                    // TODO: use ofset
-                    let p = self.builder.use_var(self.ptr);
-                    let p = self.builder.ins().iadd(self.mem, p);
-                    let v = self.builder.ins().load(types::I8, MemFlags::new(), p, 0);
-                    self.builder.ins().call(self.writebyte, &[self.output, v]);
+                    let p = self.addr();
+                    let v = self.load(p, *offset);
+                    self.writebyte(v);
                 }
                 Op::ReadVal(offset) => {
-                    // TODO: use ofset
-                    let call = self.builder.ins().call(self.readbyte, &[self.input]);
-                    let result = self.builder.inst_results(call)[0];
-
-                    let p = self.builder.use_var(self.ptr);
-                    let p = self.builder.ins().iadd(self.mem, p);
-                    self.builder.ins().store(MemFlags::new(), result, p, 0);
+                    let v = self.readbyte();
+                    let p = self.addr();
+                    self.store(v, p, *offset);
                 }
                 Op::LoopBegin(p) => {}
                 Op::LoopEnd(p) => {}
@@ -212,5 +208,46 @@ impl<'a> FunctionTranslator<'a> {
                 Op::SkipToZero(n) => {}
             }
         }
+    }
+
+    #[inline]
+    fn ptr(&mut self) -> Value {
+        self.builder.use_var(self.ptr)
+    }
+
+    #[inline]
+    fn addr(&mut self) -> Value {
+        let p = self.ptr();
+        self.builder.ins().iadd(self.mem, p)
+    }
+
+    #[inline]
+    fn add_imm(&mut self, v: Value, imm: i64) -> Value {
+        self.builder.ins().iadd_imm(v, imm)
+    }
+
+    #[inline]
+    fn load(&mut self, ptr: Value, offset: isize) -> Value {
+        self.builder
+            .ins()
+            .load(types::I8, MemFlags::new(), ptr, offset as i32)
+    }
+
+    #[inline]
+    fn store(&mut self, val: Value, ptr: Value, offset: isize) {
+        self.builder
+            .ins()
+            .store(MemFlags::new(), val, ptr, offset as i32);
+    }
+
+    #[inline]
+    fn writebyte(&mut self, v: Value) {
+        self.builder.ins().call(self.writebyte, &[self.output, v]);
+    }
+
+    #[inline]
+    fn readbyte(&mut self) -> Value {
+        let call = self.builder.ins().call(self.readbyte, &[self.input]);
+        self.builder.inst_results(call)[0]
     }
 }
