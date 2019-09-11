@@ -59,8 +59,18 @@ fn test_factor() {
 }
 
 #[test]
+fn test_factor_jit() {
+  test_brainfuck_jit("factor", FACTOR, "6825\n", "6825: 3 5 5 7 13\n");
+}
+
+#[test]
 fn test_mandelbrot() {
   test_brainfuck_interpreter("mandelbrot", MANDELBROT, "", MANDELBROT_OUTPUT);
+}
+
+#[test]
+fn test_mandelbrot_jit() {
+  test_brainfuck_jit("mandelbrot", MANDELBROT, "", MANDELBROT_OUTPUT);
 }
 
 // https://github.com/eliben/code-for-blog/tree/master/2017/bfjit

@@ -210,68 +210,73 @@ impl<'a> FunctionTranslator<'a> {
                     self.set_ptr(p);
                 }
                 Op::AddVal(offset, n) => {
-                    let p = self.addr();
-                    let v = self.load(p, *offset);
+                    let a = self.addr();
+                    let v = self.load(a, *offset);
                     let v = self.add_imm(v, i64::from(*n));
-                    self.store(v, p, *offset);
+                    self.store(v, a, *offset);
                 }
                 Op::WriteVal(offset) => {
-                    let p = self.addr();
-                    let v = self.load(p, *offset);
+                    let a = self.addr();
+                    let v = self.load(a, *offset);
                     self.writebyte(v);
                 }
                 Op::ReadVal(offset) => {
-                    let p = self.addr();
+                    let a = self.addr();
                     let v = self.readbyte();
-                    self.store(v, p, *offset);
+                    self.store(v, a, *offset);
                 }
                 Op::LoopBegin(_) => {
                     let end_block = self.loop_begin();
-                    let p = self.addr();
-                    let v = self.load(p, 0);
+                    let a = self.addr();
+                    let v = self.load(a, 0);
                     self.branch_when_zero(v, end_block);
                 }
                 Op::LoopEnd(_) => {
                     self.loop_end();
                 }
                 Op::ClearVal(offset) => {
-                    let p = self.addr();
+                    let a = self.addr();
                     let zero = self.const_val(0);
-                    self.store(zero, p, *offset);
+                    self.store(zero, a, *offset);
                 }
                 Op::MoveMulVal(offset, d, mul) => {
-                    let p = self.addr();
-                    let v = self.load(p, *offset);
+                    let a = self.addr();
+                    let v = self.load(a, *offset);
 
                     let m = self.mul_imm(v, *mul as i64);
-                    let to = self.ptr_offset(p, *d);
+                    let to = self.ptr_offset(a, *d);
                     let x = self.load(to, *offset);
                     let x = self.add(x, m);
                     self.store(x, to, *offset);
 
                     let zero = self.const_val(0);
-                    self.store(zero, p, *offset);
+                    self.store(zero, a, *offset);
                 }
                 Op::MoveMulValN(offset, params) => {
-                    let p = self.addr();
-                    let v = self.load(p, *offset);
+                    let a = self.addr();
+                    let v = self.load(a, *offset);
                     for (d, mul) in params {
                         let m = self.mul_imm(v, *mul as i64);
-                        let to = self.ptr_offset(p, *d);
+                        let to = self.ptr_offset(a, *d);
                         let x = self.load(to, *offset);
                         let x = self.add(x, m);
                         self.store(x, to, *offset);
                     }
                     let zero = self.const_val(0);
-                    self.store(zero, p, *offset);
+                    self.store(zero, a, *offset);
                 }
                 Op::SkipToZero(n) => {
                     let end_block = self.loop_begin();
-                    let p = self.addr();
-                    let v = self.load(p, 0);
+
+                    let p = self.ptr();
+                    let a = self.add(self.mem, p);
+                    let v = self.load(a, 0);
+
                     self.branch_when_zero(v, end_block);
+
                     let p = self.ptr_offset(p, *n);
                     self.set_ptr(p);
+
                     self.loop_end();
                 }
             }
