@@ -6,7 +6,13 @@ use cranelift::prelude::*;
 use cranelift_module::{default_libcall_names, DataContext, Linkage, Module};
 use cranelift_simplejit::{SimpleJITBackend, SimpleJITBuilder};
 
-const MEM_SIZE: usize = 65535;
+const DATA_SIZE: usize = 65535;
+
+macro_rules! mem_size {
+    ( $s:expr ) => {
+        4 * $s
+    };
+}
 
 pub struct JIT {
     builder_context: FunctionBuilderContext,
@@ -25,10 +31,10 @@ impl JIT {
             let mut builder = SimpleJITBuilder::new(default_libcall_names());
             {
                 let input_ptr: *mut R = &mut *(*input);
-                fn readbyte<R: io::Read>(input: *mut R) -> u8 {
+                fn readbyte<R: io::Read>(input: *mut R) -> i32 {
                     let mut buf = [0; 1];
                     unsafe { (*input).read(&mut buf).unwrap() };
-                    buf[0]
+                    buf[0] as i32
                 }
                 builder.symbol("input", input_ptr as *const u8);
                 builder.symbol("readbyte", readbyte::<R> as *const u8);
@@ -36,8 +42,8 @@ impl JIT {
 
             {
                 let output_ptr: *mut W = &mut *(*output);
-                fn writebyte<W: io::Write>(output: *mut W, ch: u8) {
-                    unsafe { (*output).write(&[ch]).unwrap() };
+                fn writebyte<W: io::Write>(output: *mut W, ch: i32) {
+                    unsafe { (*output).write(&[ch as u8]).unwrap() };
                 }
                 builder.symbol("output", output_ptr as *const u8);
                 builder.symbol("writebyte", writebyte::<W> as *const u8);
@@ -76,7 +82,7 @@ impl JIT {
     }
 
     fn initialize_memory(&mut self) {
-        self.data_ctx.define_zeroinit(MEM_SIZE as usize);
+        self.data_ctx.define_zeroinit(mem_size!(DATA_SIZE) as usize);
         let id = self
             .module
             .declare_data("mem", Linkage::Export, true, None)
@@ -115,7 +121,7 @@ impl JIT {
         let readbyte = {
             let mut sig = self.module.make_signature();
             sig.params.push(AbiParam::new(types::I64));
-            sig.returns.push(AbiParam::new(types::I8));
+            sig.returns.push(AbiParam::new(types::I32));
             let callee = self
                 .module
                 .declare_function("readbyte", Linkage::Import, &sig)
@@ -126,7 +132,7 @@ impl JIT {
         let writebyte = {
             let mut sig = self.module.make_signature();
             sig.params.push(AbiParam::new(types::I64));
-            sig.params.push(AbiParam::new(types::I8));
+            sig.params.push(AbiParam::new(types::I32));
             let callee = self
                 .module
                 .declare_function("writebyte", Linkage::Import, &sig)
@@ -144,45 +150,64 @@ impl JIT {
         };
 
         let zero = builder.ins().iconst(pointer_type, 0);
-        let ptr = Variable::new(MEM_SIZE / 2 + 1);
+        let ptr = Variable::new(mem_size!(DATA_SIZE / 2 + 1));
         builder.declare_var(ptr, pointer_type);
         builder.def_var(ptr, zero);
 
-        let mut translator = FunctionTranslator {
-            builder,
-            input,
-            output,
-            readbyte,
-            writebyte,
-            mem,
-            ptr,
-        };
+        let mut translator =
+            FunctionTranslator::new(builder, mem, ptr, input, output, readbyte, writebyte);
         translator.translate(ops);
-
         translator.builder.ins().return_(&[]);
         translator.builder.finalize();
         Ok(())
     }
 }
 
+type FFICallback = codegen::ir::entities::FuncRef;
+
 struct FunctionTranslator<'a> {
     builder: FunctionBuilder<'a>,
-    input: Value,
-    output: Value,
-    readbyte: codegen::ir::entities::FuncRef,
-    writebyte: codegen::ir::entities::FuncRef,
+
     mem: Value,
     ptr: Variable,
+
+    input: Value,
+    output: Value,
+    readbyte: FFICallback,
+    writebyte: FFICallback,
+
+    loop_stack: Vec<(Ebb, Ebb)>,
 }
 
 impl<'a> FunctionTranslator<'a> {
+    fn new(
+        builder: FunctionBuilder<'a>,
+        mem: Value,
+        ptr: Variable,
+        input: Value,
+        output: Value,
+        readbyte: FFICallback,
+        writebyte: FFICallback,
+    ) -> Self {
+        Self {
+            builder,
+            mem,
+            ptr,
+            input,
+            output,
+            readbyte,
+            writebyte,
+            loop_stack: Vec::new(),
+        }
+    }
+
     fn translate(&mut self, ops: &[Op]) {
         for op in ops {
             match op {
                 Op::MovPtr(n) => {
                     let p = self.ptr();
-                    let v = self.add_imm(p, *n as i64);
-                    self.builder.def_var(self.ptr, v);
+                    let p = self.ptr_offset(p, *n);
+                    self.set_ptr(p);
                 }
                 Op::AddVal(offset, n) => {
                     let p = self.addr();
@@ -196,16 +221,59 @@ impl<'a> FunctionTranslator<'a> {
                     self.writebyte(v);
                 }
                 Op::ReadVal(offset) => {
-                    let v = self.readbyte();
                     let p = self.addr();
+                    let v = self.readbyte();
                     self.store(v, p, *offset);
                 }
-                Op::LoopBegin(p) => {}
-                Op::LoopEnd(p) => {}
-                Op::ClearVal(offset) => {}
-                Op::MoveMulVal(offset, n, mul) => {}
-                Op::MoveMulValN(offset, params) => {}
-                Op::SkipToZero(n) => {}
+                Op::LoopBegin(_) => {
+                    let end_block = self.loop_begin();
+                    let p = self.addr();
+                    let v = self.load(p, 0);
+                    self.branch_when_zero(v, end_block);
+                }
+                Op::LoopEnd(_) => {
+                    self.loop_end();
+                }
+                Op::ClearVal(offset) => {
+                    let p = self.addr();
+                    let zero = self.const_val(0);
+                    self.store(zero, p, *offset);
+                }
+                Op::MoveMulVal(offset, d, mul) => {
+                    let p = self.addr();
+                    let v = self.load(p, *offset);
+
+                    let m = self.mul_imm(v, *mul as i64);
+                    let to = self.ptr_offset(p, *d);
+                    let x = self.load(to, *offset);
+                    let x = self.add(x, m);
+                    self.store(x, to, *offset);
+
+                    let zero = self.const_val(0);
+                    self.store(zero, p, *offset);
+                }
+                Op::MoveMulValN(offset, params) => {
+                    let p = self.addr();
+                    let v = self.load(p, *offset);
+                    for (d, mul) in params {
+                        let m = self.mul_imm(v, *mul as i64);
+                        let to = self.ptr_offset(p, *d);
+                        let x = self.load(to, *offset);
+                        let x = self.add(x, m);
+                        self.store(x, to, *offset);
+                    }
+                    let zero = self.const_val(0);
+                    self.store(zero, p, *offset);
+                }
+                Op::SkipToZero(n) => {
+                    let end_block = self.loop_begin();
+                    let p = self.addr();
+                    let v = self.load(p, 0);
+                    self.branch_when_zero(v, end_block);
+                    let p = self.ptr_offset(p, *n);
+                    self.set_ptr(p);
+                    self.loop_end();
+                }
             }
         }
     }
@@ -216,9 +284,29 @@ impl<'a> FunctionTranslator<'a> {
     }
 
     #[inline]
+    fn set_ptr(&mut self, p: Value) {
+        self.builder.def_var(self.ptr, p);
+    }
+
+    #[inline]
     fn addr(&mut self) -> Value {
         let p = self.ptr();
-        self.builder.ins().iadd(self.mem, p)
+        self.add(self.mem, p)
+    }
+
+    #[inline]
+    fn ptr_offset(&mut self, p: Value, offset: isize) -> Value {
+        self.add_imm(p, mem_size!(offset) as i64)
+    }
+
+    #[inline]
+    fn const_val(&mut self, v: i64) -> Value {
+        self.builder.ins().iconst(types::I32, v)
+    }
+
+    #[inline]
+    fn add(&mut self, v1: Value, v2: Value) -> Value {
+        self.builder.ins().iadd(v1, v2)
     }
 
     #[inline]
@@ -227,17 +315,22 @@ impl<'a> FunctionTranslator<'a> {
     }
 
     #[inline]
+    fn mul_imm(&mut self, v: Value, imm: i64) -> Value {
+        self.builder.ins().imul_imm(v, imm)
+    }
+
+    #[inline]
     fn load(&mut self, ptr: Value, offset: isize) -> Value {
         self.builder
             .ins()
-            .load(types::I8, MemFlags::new(), ptr, offset as i32)
+            .load(types::I32, MemFlags::new(), ptr, mem_size!(offset) as i32)
     }
 
     #[inline]
     fn store(&mut self, val: Value, ptr: Value, offset: isize) {
         self.builder
             .ins()
-            .store(MemFlags::new(), val, ptr, offset as i32);
+            .store(MemFlags::new(), val, ptr, mem_size!(offset) as i32);
     }
 
     #[inline]
@@ -249,5 +342,32 @@ impl<'a> FunctionTranslator<'a> {
     fn readbyte(&mut self) -> Value {
         let call = self.builder.ins().call(self.readbyte, &[self.input]);
         self.builder.inst_results(call)[0]
+    }
+
+    #[inline]
+    fn loop_begin(&mut self) -> Ebb {
+        let begin = self.builder.create_ebb();
+        let end = self.builder.create_ebb();
+        self.builder.ins().jump(begin, &[]);
+        self.builder.switch_to_block(begin);
+        self.loop_stack.push((begin, end));
+        end
+    }
+
+    #[inline]
+    fn loop_end(&mut self) {
+        if let Some((begin, end)) = self.loop_stack.pop() {
+            self.builder.ins().jump(begin, &[]);
+            self.builder.switch_to_block(end);
+            self.builder.seal_block(begin);
+            self.builder.seal_block(end);
+        } else {
+            panic!("loop begin not found");
+        }
+    }
+
+    #[inline]
+    fn branch_when_zero(&mut self, v: Value, block: Ebb) {
+        self.builder.ins().brz(v, block, &[]);
     }
 }

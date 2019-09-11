@@ -49,6 +49,11 @@ fn test_hello_world() {
 }
 
 #[test]
+fn test_hello_world_jit() {
+  test_brainfuck_jit("hello world", HELLO_WORLD, "", "Hello World!\n");
+}
+
+#[test]
 fn test_factor() {
   test_brainfuck_interpreter("factor", FACTOR, "6825\n", "6825: 3 5 5 7 13\n");
 }
