@@ -2,75 +2,75 @@ use brainfuck::{eval, eval_jit};
 use std::time::Instant;
 
 fn test_brainfuck_interpreter(name: &str, code: &str, input: &str, result: &str) {
-  let mut output = Vec::new();
+    let mut output = Vec::new();
 
-  let start = Instant::now();
-  eval(code.as_bytes(), input.as_bytes(), &mut output);
-  let end = start.elapsed();
+    let start = Instant::now();
+    eval(code.as_bytes(), input.as_bytes(), &mut output);
+    let end = start.elapsed();
 
-  assert_eq!(result, String::from_utf8(output).unwrap());
-  println!(
-    "duration({}): {}.{:09}",
-    name,
-    end.as_secs(),
-    end.subsec_nanos()
-  );
+    assert_eq!(result, String::from_utf8(output).unwrap());
+    println!(
+        "duration({}): {}.{:09}",
+        name,
+        end.as_secs(),
+        end.subsec_nanos()
+    );
 }
 
 fn test_brainfuck_jit(name: &str, code: &str, input: &str, result: &str) {
-  let mut output = Vec::new();
+    let mut output = Vec::new();
 
-  let start = Instant::now();
-  eval_jit(code.as_bytes(), input.as_bytes(), &mut output);
-  let end = start.elapsed();
+    let start = Instant::now();
+    eval_jit(code.as_bytes(), input.as_bytes(), &mut output);
+    let end = start.elapsed();
 
-  assert_eq!(result, String::from_utf8(output).unwrap());
-  println!(
-    "duration(jit-{}): {}.{:09}",
-    name,
-    end.as_secs(),
-    end.subsec_nanos()
-  );
+    assert_eq!(result, String::from_utf8(output).unwrap());
+    println!(
+        "duration(jit-{}): {}.{:09}",
+        name,
+        end.as_secs(),
+        end.subsec_nanos()
+    );
 }
 
 #[test]
 fn test_inout() {
-  test_brainfuck_interpreter("inoout", ",.,.,.,.", "hoge", "hoge");
+    test_brainfuck_interpreter("inoout", ",.,.,.,.", "hoge", "hoge");
 }
 
 #[test]
 fn test_inout_jit() {
-  test_brainfuck_jit("inoout", ",.,.,.,.", "hoge", "hoge");
+    test_brainfuck_jit("inoout", ",.,.,.,.", "hoge", "hoge");
 }
 
 #[test]
 fn test_hello_world() {
-  test_brainfuck_interpreter("hello world", HELLO_WORLD, "", "Hello World!\n");
+    test_brainfuck_interpreter("hello world", HELLO_WORLD, "", "Hello World!\n");
 }
 
 #[test]
 fn test_hello_world_jit() {
-  test_brainfuck_jit("hello world", HELLO_WORLD, "", "Hello World!\n");
+    test_brainfuck_jit("hello world", HELLO_WORLD, "", "Hello World!\n");
 }
 
 #[test]
 fn test_factor() {
-  test_brainfuck_interpreter("factor", FACTOR, "6825\n", "6825: 3 5 5 7 13\n");
+    test_brainfuck_interpreter("factor", FACTOR, "6825\n", "6825: 3 5 5 7 13\n");
 }
 
 #[test]
 fn test_factor_jit() {
-  test_brainfuck_jit("factor", FACTOR, "6825\n", "6825: 3 5 5 7 13\n");
+    test_brainfuck_jit("factor", FACTOR, "6825\n", "6825: 3 5 5 7 13\n");
 }
 
 #[test]
 fn test_mandelbrot() {
-  test_brainfuck_interpreter("mandelbrot", MANDELBROT, "", MANDELBROT_OUTPUT);
+    test_brainfuck_interpreter("mandelbrot", MANDELBROT, "", MANDELBROT_OUTPUT);
 }
 
 #[test]
 fn test_mandelbrot_jit() {
-  test_brainfuck_jit("mandelbrot", MANDELBROT, "", MANDELBROT_OUTPUT);
+    test_brainfuck_jit("mandelbrot", MANDELBROT, "", MANDELBROT_OUTPUT);
 }
 
 // https://github.com/eliben/code-for-blog/tree/master/2017/bfjit
