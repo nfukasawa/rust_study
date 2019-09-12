@@ -2,7 +2,7 @@
 
 extern crate test;
 
-use brainfuck::eval;
+use brainfuck::{eval, eval_jit};
 use test::Bencher;
 
 #[bench]
@@ -10,6 +10,15 @@ fn bench_brainfuck(b: &mut Bencher) {
     b.iter(|| {
         let mut output = Vec::new();
         eval(FACTOR.as_bytes(), "6825\n".as_bytes(), &mut output);
+        //print!("Result: {}", String::from_utf8(output).unwrap());
+    });
+}
+
+#[bench]
+fn bench_brainfuck_jit(b: &mut Bencher) {
+    b.iter(|| {
+        let mut output = Vec::new();
+        eval_jit(FACTOR.as_bytes(), "6825\n".as_bytes(), &mut output);
         //print!("Result: {}", String::from_utf8(output).unwrap());
     });
 }
