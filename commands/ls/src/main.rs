@@ -170,7 +170,17 @@ impl DirInfo {
             let metadata: &fs::Metadata = *metdata;
             let (user, group) = owner(metadata);
             let (month, day, year_or_time) = date_time(metadata);
-            println!("{} {} {} {: >8} {: >2} {: >2} {: >5} {}", mode(metadata), user, group, metadata.len(), month, day, year_or_time, file); // TODO: other info
+            println!(
+                "{} {} {} {: >8} {: >2} {: >2} {: >5} {}",
+                mode(metadata),
+                user,
+                group,
+                metadata.len(),
+                month,
+                day,
+                year_or_time,
+                file
+            );
         }
     }
 }
@@ -208,11 +218,24 @@ fn owner(meta: &fs::Metadata) -> (String, String) {
 }
 
 fn date_time(meta: &fs::Metadata) -> (u32, u32, String) {
-    use chrono::{DateTime, NaiveDateTime, Utc, Local, Datelike, Timelike};
+    use chrono::{DateTime, Datelike, Local, NaiveDateTime, Timelike, Utc};
     let t = meta.modified().unwrap();
-    let t = t.duration_since(std::time::UNIX_EPOCH).expect("back to the future");
-    let dt = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(t.as_secs() as i64, t.subsec_nanos()), Utc);
+    let t = t
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("back to the future");
+    let dt = DateTime::<Utc>::from_utc(
+        NaiveDateTime::from_timestamp(t.as_secs() as i64, t.subsec_nanos()),
+        Utc,
+    );
     let dt: DateTime<Local> = DateTime::from(dt);
     let now = Local::now();
-    (dt.month(), dt.day(), if now.year() == dt.year() {format!("{}:{}", dt.hour(), dt.minute())} else {format!("{}",  dt.year())})
+    (
+        dt.month(),
+        dt.day(),
+        if now.year() == dt.year() {
+            format!("{}:{}", dt.hour(), dt.minute())
+        } else {
+            format!("{}", dt.year())
+        },
+    )
 }
