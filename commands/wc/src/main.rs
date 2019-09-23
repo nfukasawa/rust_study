@@ -6,19 +6,22 @@ use std::io::{stdin, BufRead, BufReader, Read, Result};
 
 fn main() {
     let (opts, files) = Opts::parse();
+    let mut fmt = Formatter::new();
     if let Some(files) = files {
-        for filename in files {
+        for filename in files.iter() {
             // TODO: expand wildcard
+            // TODO: exec in parallel
             match File::open(filename.as_str()) {
                 Ok(file) => {
-                    count(file, &opts).print(&filename, &opts);
+                    fmt.add(&count(file, &opts), filename);
                 }
                 Err(err) => eprintln!("{}", err),
             }
         }
     } else {
-        count(&mut stdin().lock(), &opts).print(&"".to_string(), &opts);
+        fmt.add(&count(&mut stdin().lock(), &opts), &"".to_string());
     }
+    fmt.print(&opts);
 }
 
 #[derive(Debug, Clone)]
@@ -81,34 +84,6 @@ struct Counts {
     bytes: usize,
 }
 
-impl Counts {
-    fn print(&self, filename: &String, opts: &Opts) {
-        let mut vals = Vec::new();
-        if opts.lines {
-            vals.push(self.lines);
-        }
-        if opts.words {
-            vals.push(self.words);
-        }
-        if opts.chars {
-            vals.push(self.chars);
-        }
-        if opts.bytes {
-            vals.push(self.bytes)
-        }
-
-        for n in vals.iter() {
-            if *n > 0 {
-                print!("{: >8} ", n) // TODO: calc width
-            }
-        }
-        if filename != "" {
-            print!("{}", filename);
-        }
-        print!("\n");
-    }
-}
-
 fn count<R: Read>(input: R, opts: &Opts) -> Counts {
     if opts.is_bytes_only() {
         let mut input = ByteCountReader::new(input);
@@ -149,13 +124,8 @@ fn count_partial<R: BufRead>(input: &mut R, opts: &Opts) -> Counts {
             Ok(n) => {
                 lines += 1;
                 chars += n;
-                if !opts.words {
-                    continue;
-                }
-                for word in line.split_whitespace() {
-                    if !word.is_empty() {
-                        words += 1;
-                    }
+                if opts.words {
+                    words += line.split_whitespace().count();
                 }
             }
             Err(err) => {
@@ -190,4 +160,74 @@ impl<R: Read> Read for ByteCountReader<R> {
         }
         result
     }
+}
+
+use std::collections::BTreeMap;
+struct Formatter {
+    counts: BTreeMap<String, Counts>,
+}
+
+impl Formatter {
+    fn new() -> Self {
+        Formatter {
+            counts: BTreeMap::new(),
+        }
+    }
+
+    fn add(&mut self, c: &Counts, filename: &String) {
+        self.counts.insert(filename.clone(), *c);
+    }
+
+    fn print(&self, opts: &Opts) {
+        let mut total = Counts::default();
+
+        for (_, c) in self.counts.iter() {
+            total.lines += c.lines;
+            total.words += c.words;
+            total.chars += c.chars;
+            total.bytes += c.bytes;
+        }
+        let lines_len = digits(total.lines);
+        let words_len = digits(total.words);
+        let chars_len = digits(total.chars);
+        let bytes_len = digits(total.bytes);
+
+        for (f, c) in self.counts.iter() {
+            self.print_counts(c, f, opts, (lines_len, words_len, chars_len, bytes_len));           
+        }
+        if self.counts.len() > 1 {
+            self.print_counts(&total, &"total".to_string(), opts, (lines_len, words_len, chars_len, bytes_len))
+        }
+    }
+
+    fn print_counts(&self, c: &Counts, f: &String, opts:&Opts, ls: (usize, usize, usize, usize)) {
+        let (lines_len, words_len, chars_len, bytes_len) = ls;
+
+        let mut vals = Vec::new();
+        if opts.lines {
+            vals.push((c.lines, lines_len));
+        }
+        if opts.words {
+            vals.push((c.words, words_len));
+        }
+        if opts.chars {
+            vals.push((c.chars, chars_len));
+        }
+        if opts.bytes {
+            vals.push((c.bytes, bytes_len));
+        }
+
+        for (c, l) in vals.iter() {
+            let mut spaces = Vec::new();
+            spaces.resize(l - digits(*c), ' ');
+
+            use std::iter::FromIterator;
+            print!("{}{} ", String::from_iter(spaces), c);
+        }
+        println!("{}", f);
+    }
+}
+
+fn digits(n: usize) -> usize {
+    (n as f64).log10() as usize + 1
 }
