@@ -1,7 +1,7 @@
 extern crate clap;
 
 use clap::{App, Arg, ArgMatches};
-use std::fs::File;
+use std::fs;
 use std::io::{stdin, BufRead, BufReader, Read, Result};
 
 fn main() {
@@ -9,13 +9,21 @@ fn main() {
     let mut fmt = Formatter::new();
     if let Some(files) = files {
         for filename in files.iter() {
-            // TODO: expand wildcard
             // TODO: exec in parallel
-            match File::open(filename.as_str()) {
-                Ok(file) => {
-                    fmt.add(&count(file, &opts), filename);
+            match fs::metadata(filename) {
+                Ok(metadata) => {
+                    if metadata.is_dir() {
+                        eprintln!("{}: Is a directory", filename);
+                        continue;
+                    }
+                    match fs::File::open(filename) {
+                        Ok(file) => {
+                            fmt.add(&count(file, &opts), filename);
+                        }
+                        Err(err) => eprintln!("{}: {}", filename, err),
+                    }
                 }
-                Err(err) => eprintln!("{}", err),
+                Err(_) => eprintln!("{}: No such file or directory", filename),
             }
         }
     } else {
