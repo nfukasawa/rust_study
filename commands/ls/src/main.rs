@@ -167,9 +167,10 @@ impl DirInfo {
         }
 
         for (file, metdata) in items.iter() {
-            use std::os::unix::fs::PermissionsExt;
             let metadata: &fs::Metadata = *metdata;
-            println!("{} {}", mode(metadata), file); // TODO: other info
+            let (user, group) = owner(metadata);
+            let (month, day, year_or_time) = date_time(metadata);
+            println!("{} {} {} {: >8} {: >2} {: >2} {: >5} {}", mode(metadata), user, group, metadata.len(), month, day, year_or_time, file); // TODO: other info
         }
     }
 }
@@ -191,4 +192,27 @@ fn mode(meta: &fs::Metadata) -> String {
         if has_bit(0x0002) { 'w' } else { '-' },
         if has_bit(0x0001) { 'x' } else { '-' },
     )
+}
+
+fn owner(meta: &fs::Metadata) -> (String, String) {
+    (
+        match users::get_user_by_uid(meta.uid()) {
+            Some(user) => user.name().to_string_lossy().to_string(),
+            None => meta.uid().to_string(),
+        },
+        match users::get_group_by_gid(meta.gid()) {
+            Some(group) => group.name().to_string_lossy().to_string(),
+            None => meta.gid().to_string(),
+        },
+    )
+}
+
+fn date_time(meta: &fs::Metadata) -> (u32, u32, String) {
+    use chrono::{DateTime, NaiveDateTime, Utc, Local, Datelike, Timelike};
+    let t = meta.modified().unwrap();
+    let t = t.duration_since(std::time::UNIX_EPOCH).expect("back to the future");
+    let dt = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(t.as_secs() as i64, t.subsec_nanos()), Utc);
+    let dt: DateTime<Local> = DateTime::from(dt);
+    let now = Local::now();
+    (dt.month(), dt.day(), if now.year() == dt.year() {format!("{}:{}", dt.hour(), dt.minute())} else {format!("{}",  dt.year())})
 }
