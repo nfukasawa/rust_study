@@ -53,7 +53,7 @@ impl Opts {
         let m: ArgMatches = app.get_matches();
 
         let mut lines = m.is_present("lines");
-        let mut words = m.is_present("wods");
+        let mut words = m.is_present("words");
         let mut bytes = m.is_present("bytes");
         let chars = m.is_present("chars");
         if !bytes && !chars && !lines && !words {
@@ -92,11 +92,13 @@ struct Counts {
     bytes: usize,
 }
 
+const BLOCK_SIZE: usize = 4096;
+
 fn count<R: Read>(input: R, opts: &Opts) -> Counts {
     if opts.is_bytes_only() {
         let mut input = ByteCountReader::new(input);
         loop {
-            let mut buf = vec![0; 8192];
+            let mut buf = vec![0; BLOCK_SIZE];
             match input.read(&mut buf) {
                 Ok(0) => break,
                 Err(err) => panic!(err),
@@ -105,7 +107,7 @@ fn count<R: Read>(input: R, opts: &Opts) -> Counts {
         }
         return Counts {
             bytes: input.bytes,
-            ..Default::default()
+            ..Counts::default()
         };
     }
 
@@ -135,7 +137,17 @@ fn count_partial<R: BufRead>(input: &mut R, opts: &Opts) -> Counts {
                 }
                 chars += n;
                 if opts.words {
-                    words += line.split_whitespace().count();
+                    let mut before_whitespace = true;
+                    for c in line.chars() {
+                        if c.is_whitespace() {
+                            before_whitespace = true;
+                        } else {
+                            if before_whitespace {
+                                words += 1
+                            }
+                            before_whitespace = false;
+                        }
+                    }
                 }
             }
             Err(err) => {
@@ -147,7 +159,7 @@ fn count_partial<R: BufRead>(input: &mut R, opts: &Opts) -> Counts {
         lines: if opts.lines { lines } else { 0 },
         words: if opts.words { words } else { 0 },
         chars: if opts.chars { chars } else { 0 },
-        ..Default::default()
+        ..Counts::default()
     }
 }
 
