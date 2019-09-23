@@ -122,7 +122,9 @@ fn count_partial<R: BufRead>(input: &mut R, opts: &Opts) -> Counts {
         match input.read_line(&mut line) {
             Ok(0) => break,
             Ok(n) => {
-                lines += 1;
+                if line.ends_with('\n') {
+                    lines += 1;
+                }
                 chars += n;
                 if opts.words {
                     words += line.split_whitespace().count();
