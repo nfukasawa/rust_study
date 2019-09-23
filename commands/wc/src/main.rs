@@ -19,7 +19,7 @@ fn main() {
             }
         }
     } else {
-        fmt.add(&count(&mut stdin().lock(), &opts), &"".to_string());
+        fmt.add(&count(&mut stdin().lock(), &opts), "");
     }
     fmt.print(&opts);
 }
@@ -174,8 +174,8 @@ impl Formatter {
         }
     }
 
-    fn add(&mut self, c: &Counts, filename: &String) {
-        self.counts.insert(filename.clone(), *c);
+    fn add<S: Into<String>>(&mut self, c: &Counts, filename: S) {
+        self.counts.insert(filename.into(), *c);
     }
 
     fn print(&self, opts: &Opts) {
@@ -193,14 +193,25 @@ impl Formatter {
         let bytes_len = digits(total.bytes);
 
         for (f, c) in self.counts.iter() {
-            self.print_counts(c, f, opts, (lines_len, words_len, chars_len, bytes_len));           
+            self.print_counts(c, f, opts, (lines_len, words_len, chars_len, bytes_len));
         }
         if self.counts.len() > 1 {
-            self.print_counts(&total, &"total".to_string(), opts, (lines_len, words_len, chars_len, bytes_len))
+            self.print_counts(
+                &total,
+                "total",
+                opts,
+                (lines_len, words_len, chars_len, bytes_len),
+            )
         }
     }
 
-    fn print_counts(&self, c: &Counts, f: &String, opts:&Opts, ls: (usize, usize, usize, usize)) {
+    fn print_counts<S: Into<String>>(
+        &self,
+        c: &Counts,
+        f: S,
+        opts: &Opts,
+        ls: (usize, usize, usize, usize),
+    ) {
         let (lines_len, words_len, chars_len, bytes_len) = ls;
 
         let mut vals = Vec::new();
@@ -224,7 +235,7 @@ impl Formatter {
             use std::iter::FromIterator;
             print!("{}{} ", String::from_iter(spaces), c);
         }
-        println!("{}", f);
+        println!("{}", f.into());
     }
 }
 
