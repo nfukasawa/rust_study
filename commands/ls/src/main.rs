@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use std::env;
 use std::fs;
 use std::os::unix::fs::MetadataExt;
+use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
 fn main() {
@@ -14,7 +15,6 @@ fn main() {
             for target in targets.iter() {
                 match fs::metadata(target) {
                     Ok(metadata) => {
-                        metadata.dev();
                         if metadata.is_dir() {
                             let dir = DirInfo::new_dir(&target, metadata);
                             info.insert(target.clone(), dir);
@@ -186,21 +186,20 @@ impl DirInfo {
 }
 
 fn mode(meta: &fs::Metadata) -> String {
-    use std::os::unix::fs::PermissionsExt;
     let mode = meta.permissions().mode();
-    let has_bit = |bit| mode & bit == bit;
+    let bit = |bit, ch| if mode & bit == bit { ch } else { '-' };
     format!(
         "{}{}{}{}{}{}{}{}{}{}",
         if meta.is_dir() { 'd' } else { '-' },
-        if has_bit(0x0100) { 'r' } else { '-' },
-        if has_bit(0x0080) { 'w' } else { '-' },
-        if has_bit(0x0040) { 'x' } else { '-' },
-        if has_bit(0x0020) { 'r' } else { '-' },
-        if has_bit(0x0010) { 'w' } else { '-' },
-        if has_bit(0x0008) { 'x' } else { '-' },
-        if has_bit(0x0004) { 'r' } else { '-' },
-        if has_bit(0x0002) { 'w' } else { '-' },
-        if has_bit(0x0001) { 'x' } else { '-' },
+        bit(0x0100, 'r'),
+        bit(0x0080, 'w'),
+        bit(0x0040, 'x'),
+        bit(0x0020, 'r'),
+        bit(0x0010, 'w'),
+        bit(0x0008, 'x'),
+        bit(0x0004, 'r'),
+        bit(0x0002, 'w'),
+        bit(0x0001, 'x'),
     )
 }
 
