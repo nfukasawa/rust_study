@@ -1,12 +1,10 @@
 extern crate hyper;
-use hyper::rt::Future;
-use hyper::service::service_fn_ok;
-
-use std::sync::Arc;
 
 use hyper::Method;
 type Request = hyper::Request<hyper::Body>;
 type Response = hyper::Response<hyper::Body>;
+
+use std::sync::Arc;
 
 use super::context::Context;
 use super::path::Path;
@@ -87,31 +85,24 @@ impl Router {
             .push((method, Path::new(path.into()), Box::new(handler)));
         self
     }
+}
 
-    pub fn run(self, port: u16) {
-        let routes = Arc::new(self.routes);
-        let svc = move || {
-            let routes = routes.clone();
-            service_fn_ok(move |req| {
-                for (method, path, handler) in routes.iter() {
-                    if method == req.method() {
-                        let (ok, params) = path.matches(req.uri().path());
-                        if ok {
-                            return handler(&Context::new(params), &req);
-                        }
-                    }
-                }
+pub fn get_routes(router: Router) -> Arc<Vec<(Method, Path, HandlerCallback)>> {
+    Arc::new(router.routes)
+}
 
-                hyper::Response::builder()
-                    .status(hyper::StatusCode::NOT_FOUND)
-                    .body(hyper::Body::from("Not Found"))
-                    .unwrap()
-            })
-        };
-        let server = hyper::Server::bind(&([127, 0, 0, 1], port).into())
-            .serve(svc)
-            .map_err(|e| eprintln!("server error: {}", e));
-
-        hyper::rt::run(server);
+pub fn do_routing(routes: &Vec<(Method, Path, HandlerCallback)>, req: &Request) -> Response {
+    for (method, path, handler) in routes.iter() {
+        if method == req.method() {
+            let (ok, params) = path.matches(req.uri().path());
+            if ok {
+                return handler(&Context::new(params), &req);
+            }
+        }
     }
+
+    hyper::Response::builder()
+        .status(hyper::StatusCode::NOT_FOUND)
+        .body(hyper::Body::from("Not Found"))
+        .unwrap()
 }

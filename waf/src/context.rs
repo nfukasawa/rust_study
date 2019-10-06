@@ -7,7 +7,7 @@ pub struct Context {
 impl Context {
     pub fn new(params: Option<HashMap<String, String>>) -> Self {
         Self { params }
-    }
+    }    
 
     pub fn param<'a, S>(&self, id: S) -> Option<&String>
     where
