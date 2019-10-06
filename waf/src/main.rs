@@ -3,8 +3,8 @@ extern crate hyper;
 #[macro_use]
 extern crate serde_json;
 
-use std::sync::{Arc, Mutex};
 use hyper::{Body, Response, StatusCode};
+use std::sync::{Arc, Mutex};
 use waf::{Router, Server};
 
 fn main() {
@@ -17,7 +17,6 @@ fn main() {
                 .status(StatusCode::OK)
                 .header("Content-Type", "application/json")
                 .body(Body::from(json!({"message": "Hello, World!"}).to_string()))
-                .unwrap()
         })
         .get("/counter", move |_, _| {
             let mut counter = counter.lock().unwrap();
@@ -26,7 +25,6 @@ fn main() {
                 .status(StatusCode::OK)
                 .header("Content-Type", "application/json")
                 .body(Body::from(json!({"counter": *counter}).to_string()))
-                .unwrap()
         })
         .get("/foo/:id", |ctx, _| {
             let id = ctx.param("id");
@@ -34,7 +32,6 @@ fn main() {
                 .status(StatusCode::OK)
                 .header("Content-Type", "application/json")
                 .body(Body::from(json!({ "id": id }).to_string()))
-                .unwrap()
         });
 
     Server::new().serve(router, 3000);

@@ -1,6 +1,6 @@
 use super::router::{do_routing, get_routes, Router};
 use hyper::rt::Future;
-use hyper::service::service_fn_ok;
+use hyper::service::service_fn;
 
 pub struct Server {}
 
@@ -14,7 +14,7 @@ impl Server {
 
         let svc = move || {
             let routes = routes.clone();
-            service_fn_ok(move |req| do_routing(&routes, &req))
+            service_fn(move |req| do_routing(&routes, &req))
         };
         let server = hyper::Server::bind(&([127, 0, 0, 1], port).into())
             .serve(svc)
