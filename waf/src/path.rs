@@ -51,11 +51,66 @@ impl Path {
                 Component::Param(cmp) => {
                     params.insert(cmp.to_string(), cmps[i].to_string());
                 }
-                Component::Wildcard => return (true, Some(params)),
+                Component::Wildcard => {
+                    if i == l1 - 1 {
+                        return (true, Some(params));
+                    }
+                }
             }
             i += 1;
         }
 
-        (true, Some(params))
+        if params.len() > 0 {
+            (true, Some(params))
+        } else {
+            (true, None)
+        }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Path;
+    use std::collections::HashMap;
+    macro_rules! params {
+        ( $( $t:expr),* ) => {
+            {
+                let mut temp_hash = HashMap::new();
+                $(
+                    temp_hash.insert(format!(":{}", $t.0.to_string()), $t.1.to_string());
+                )*
+                temp_hash
+            }
+        };
+    }
+
+    #[test]
+    fn test_path() {
+        let cases = vec![
+            ("/foo/bar", "/foo/bar", true, None),
+            ("/foo/bar", "/foo/bar/", false, None),
+            ("/foo/:id", "/foo/1234", true, Some(params![("id", "1234")])),
+            ("/foo/:id", "/foo/1234/", false, None),
+            (
+                "/foo/bar/:id/*",
+                "/foo/bar/fizz/buzz/hoge/fuga",
+                true,
+                Some(params![("id", "fizz")]),
+            ),
+            (
+                "/foo/bar/:id/*/:id2/*",
+                "/foo/bar/fizz/buzz/hoge/fuga",
+                true,
+                Some(params![("id", "fizz"), ("id2", "hoge")]),
+            ),
+        ];
+
+        for (route, path, ok, params) in cases.iter() {
+            let p = Path::new(route);
+            let (res_ok, res_params) = p.matches(path);
+            assert_eq!(*ok, res_ok);
+            assert_eq!(*params, res_params);
+        }
+    }
+
 }
