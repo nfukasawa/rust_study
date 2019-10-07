@@ -9,6 +9,7 @@ use path_tree::PathTree;
 
 use super::context::Context;
 
+// TODO: handle http error status in middleware
 type Middleware = Box<dyn Fn(&mut Context, &Request) -> Result<(), Error> + Send + Sync>;
 type Handler = Box<dyn Fn(&Context, &Request) -> Result<Response, Error> + Send + Sync>;
 
