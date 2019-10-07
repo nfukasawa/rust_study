@@ -32,6 +32,36 @@ fn main() {
                 .status(StatusCode::OK)
                 .header("Content-Type", "application/json")
                 .body(Body::from(json!({ "id": id }).to_string()))
+        })
+        .middleware("/users/*", |ctx, req| {
+            match req.headers().get("Authorization") {
+                Some(val) => {
+                    let val = val.to_str().unwrap().to_string();
+                    if val.starts_with("Bearer ") {
+                        ctx.set_value("username", Box::new("John".to_string()));
+                    }
+                }
+                None => (),
+            }
+            Ok(())
+        })
+        .get("/users/:id", |ctx, _| {
+            let username = match ctx.value("username") {
+                Some(val) => match val.downcast_ref::<String>() {
+                    // TODO: not matched. why?
+                    Some(val) => val,
+                    None => "unknown",
+                },
+                None => "unknown",
+            };
+            let id = ctx.param("id");
+
+            Response::builder()
+                .status(StatusCode::OK)
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    json!({ "id": id, "username": username }).to_string(),
+                ))
         });
 
     Server::new().serve(router, 3000);

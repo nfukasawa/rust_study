@@ -9,17 +9,29 @@ use path_tree::PathTree;
 
 use super::context::Context;
 
-type HandlerCallback = Box<dyn Fn(&Context, &Request) -> Result<Response, Error> + Send + Sync>;
+type Middleware = Box<dyn Fn(&mut Context, &Request) -> Result<(), Error> + Send + Sync>;
+type Handler = Box<dyn Fn(&Context, &Request) -> Result<Response, Error> + Send + Sync>;
 
 pub struct Router {
-    routes: PathTree<HandlerCallback>,
+    middlewares: PathTree<Middleware>,
+    routes: PathTree<Handler>,
 }
 
 impl Router {
     pub fn new() -> Self {
         Self {
+            middlewares: PathTree::new(),
             routes: PathTree::new(),
         }
+    }
+
+    pub fn middleware<'a, S, H>(&mut self, path: S, handler: H) -> &mut Self
+    where
+        S: Into<&'a str>,
+        H: Fn(&mut Context, &Request) -> Result<(), Error> + Send + Sync + 'static,
+    {
+        self.middlewares.insert(path.into(), Box::new(handler));
+        self
     }
 
     pub fn get<'a, S, H>(&mut self, path: S, handler: H) -> &mut Self
@@ -89,9 +101,18 @@ impl Router {
     }
 
     pub fn exec(&self, req: &Request) -> Result<Response, Error> {
+        let mut ctx = Context::new();
+
+        match self.middlewares.find(req.uri().path()) {
+            Some((middleware, _)) => match middleware(&mut ctx, req) {
+                Ok(_) => (),
+                Err(err) => return Err(err),
+            },
+            None => (),
+        }
+
         match self.routes.find(&tree_path(req.method(), req.uri().path())) {
             Some((handler, params)) => {
-                let mut ctx = Context::new();
                 ctx.set_params(params);
                 handler(&ctx, &req)
             }

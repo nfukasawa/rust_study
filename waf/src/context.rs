@@ -1,6 +1,7 @@
 use std::any::Any;
 use std::collections::HashMap;
 
+#[derive(Debug)]
 pub struct Context<'a> {
     params: Option<Vec<(&'a str, &'a str)>>,
     values: HashMap<String, Box<dyn Any>>,
@@ -46,7 +47,7 @@ impl<'a> Context<'a> {
         }
     }
 
-    pub fn set_value<S, T>(&mut self, id: S, val: Box<dyn Any>)
+    pub fn set_value<S>(&mut self, id: S, val: Box<dyn Any>)
     where
         S: Into<String>,
     {
