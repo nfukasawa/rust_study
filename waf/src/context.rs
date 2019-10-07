@@ -1,24 +1,22 @@
-use std::collections::HashMap;
-
-pub struct Context {
-    params: Option<HashMap<String, String>>,
+pub struct Context<'a> {
+    params: Vec<(&'a str, &'a str)>,
 }
 
-impl Context {
-    pub fn new(params: Option<HashMap<String, String>>) -> Self {
+impl<'a> Context<'a> {
+    pub fn new(params: Vec<(&'a str, &'a str)>) -> Self {
         Self { params }
-    }    
+    }
 
-    pub fn param<'a, S>(&self, id: S) -> Option<&String>
+    pub fn param<'b, S>(&self, id: S) -> Option<&str>
     where
-        S: Into<&'a str>,
+        S: Into<&'b str>,
     {
-        match &self.params {
-            Some(params) => {
-                let id = format!(":{}", id.into());
-                params.get(&id)
+        let id = id.into();
+        for (k, v) in self.params.iter() {
+            if id == *k {
+                return Some(v);
             }
-            None => None,
         }
+        None
     }
 }

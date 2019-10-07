@@ -1,10 +1,7 @@
-extern crate hyper;
-
-mod server;
 mod context;
-mod path;
 mod router;
+mod server;
 
-pub use server::Server;
 pub use context::Context;
 pub use router::Router;
+pub use server::Server;
