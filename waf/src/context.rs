@@ -37,20 +37,22 @@ impl<'a> Context<'a> {
         self.params = Some(params);
     }
 
-    pub fn value<'b, S>(&self, id: S) -> Option<&dyn Any>
+    pub fn value<'b, S, T>(&self, id: S) -> Option<&T>
     where
         S: Into<&'b str>,
+        T: 'static,
     {
         match self.values.get(id.into()) {
-            Some(val) => Some(&*val),
+            Some(val) => val.downcast_ref::<T>(),
             None => None,
         }
     }
 
-    pub fn set_value<S>(&mut self, id: S, val: Box<dyn Any>)
+    pub fn set_value<S, T>(&mut self, id: S, val: T)
     where
         S: Into<String>,
+        T: 'static,
     {
-        self.values.insert(id.into(), val);
+        self.values.insert(id.into(), Box::new(val));
     }
 }

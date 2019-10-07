@@ -38,7 +38,7 @@ fn main() {
                 Some(val) => {
                     let val = val.to_str().unwrap().to_string();
                     if val.starts_with("Bearer ") {
-                        ctx.set_value("username", Box::new("John".to_string()));
+                        ctx.set_value("username", "John".to_string());
                     }
                 }
                 None => (),
@@ -46,13 +46,10 @@ fn main() {
             Ok(())
         })
         .get("/users/:id", |ctx, _| {
-            let username = match ctx.value("username") {
-                Some(val) => match val.downcast_ref::<String>() {
-                    // TODO: not matched. why?
-                    Some(val) => val,
-                    None => "unknown",
-                },
-                None => "unknown",
+            let unknown = "unknown".to_string();
+            let username: &String = match ctx.value("username") {
+                Some(val) => val,
+                None => &unknown,
             };
             let id = ctx.param("id");
 
