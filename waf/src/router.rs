@@ -6,7 +6,6 @@ use hyper::Method;
 type Request = hyper::Request<hyper::Body>;
 type Response = hyper::Response<hyper::Body>;
 use path_tree::PathTree;
-use std::sync::Arc;
 
 use super::context::Context;
 
@@ -88,18 +87,18 @@ impl Router {
             .insert(&tree_path(method, path.into()), Box::new(handler));
         self
     }
-}
 
-pub fn get_routes(router: Router) -> Arc<PathTree<HandlerCallback>> {
-    Arc::new(router.routes)
-}
-
-pub fn do_routing(routes: &PathTree<HandlerCallback>, req: &Request) -> Result<Response, Error> {
-    match routes.find(&tree_path(req.method(), req.uri().path())) {
-        Some((handler, params)) => handler(&Context::new(params), &req),
-        None => hyper::Response::builder()
-            .status(hyper::StatusCode::NOT_FOUND)
-            .body(hyper::Body::from("Not Found")),
+    pub fn exec(&self, req: &Request) -> Result<Response, Error> {
+        match self.routes.find(&tree_path(req.method(), req.uri().path())) {
+            Some((handler, params)) => {
+                let mut ctx = Context::new();
+                ctx.set_params(params);
+                handler(&ctx, &req)
+            }
+            None => hyper::Response::builder()
+                .status(hyper::StatusCode::NOT_FOUND)
+                .body(hyper::Body::from("Not Found")),
+        }
     }
 }
 

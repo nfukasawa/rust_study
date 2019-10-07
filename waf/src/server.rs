@@ -1,6 +1,7 @@
-use super::router::{do_routing, get_routes, Router};
+use super::router::Router;
 use hyper::rt::Future;
 use hyper::service::service_fn;
+use std::sync::Arc;
 
 pub struct Server {}
 
@@ -10,11 +11,11 @@ impl Server {
     }
 
     pub fn serve(self, router: Router, port: u16) {
-        let routes = get_routes(router);
+        let router = Arc::new(router);
 
         let svc = move || {
-            let routes = routes.clone();
-            service_fn(move |req| do_routing(&routes, &req))
+            let router = router.clone();
+            service_fn(move |req| router.exec(&req))
         };
         let server = hyper::Server::bind(&([127, 0, 0, 1], port).into())
             .serve(svc)
