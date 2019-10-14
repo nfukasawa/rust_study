@@ -1,10 +1,10 @@
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Cell {
     Alive,
     Dead,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct LifeGame {
     field: Vec<Vec<Cell>>,
 }
@@ -20,7 +20,7 @@ impl LifeGame {
         Self { field }
     }
 
-    pub fn set(&mut self, x: usize, y: usize, val: Cell) -> Option<&Cell> {
+    pub fn set_cell(&mut self, x: usize, y: usize, val: Cell) -> Option<&Cell> {
         match self.cell_mut(x, y) {
             Some(cell) => {
                 *cell = val;
@@ -44,22 +44,28 @@ impl LifeGame {
 
     fn num_neighbor_alive(&self, x: usize, y: usize) -> usize {
         vec![
-            (x - 1, y - 1),
-            (x - 1, y),
-            (x, y - 1),
-            (x + 1, y - 1),
-            (x - 1, y + 1),
-            (x, y + 1),
-            (x + 1, y),
-            (x + 1, y + 1),
+            (x.checked_sub(1), y.checked_sub(1)),
+            (x.checked_sub(1), Some(y)),
+            (Some(x), y.checked_sub(1)),
+            (Some(x + 1), y.checked_sub(1)),
+            (x.checked_sub(1), Some(y + 1)),
+            (Some(x), Some(y + 1)),
+            (Some(x + 1), Some(y)),
+            (Some(x + 1), Some(y + 1)),
         ]
         .iter()
-        .map(|(x, y)| match self.cell(*x, *y) {
-            Some(cell) => match cell {
-                Cell::Alive => 1,
-                Cell::Dead => 0,
-            },
-            None => 0,
+        .map(|(x, y)| {
+            if let (Some(x), Some(y)) = (x, y) {
+                match self.cell(*x, *y) {
+                    Some(cell) => match cell {
+                        Cell::Alive => 1,
+                        Cell::Dead => 0,
+                    },
+                    None => 0,
+                }
+            } else {
+                0
+            }
         })
         .sum()
     }
