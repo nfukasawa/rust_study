@@ -4,7 +4,7 @@ import './App.css';
 
 export function App(): React.ReactElement {
   const [width, height] = [100, 100];
-  const interval = 100;
+  const interval = 200;
   const [field, setField] = React.useState<Uint8Array>(null as any);
 
   React.useEffect(() => {
