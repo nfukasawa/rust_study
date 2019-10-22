@@ -1,45 +1,57 @@
-#[derive(Clone, Debug, PartialEq)]
+use wasm_bindgen::prelude::*;
+
+#[wasm_bindgen]
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Cell {
-    Alive,
-    Dead,
+    Alive = 1u8,
+    Dead = 0u8,
 }
 
+#[wasm_bindgen]
 #[derive(Debug, PartialEq)]
 pub struct LifeGame {
-    field: Vec<Vec<Cell>>,
+    width: usize,
+    height: usize,
+    field: Vec<Cell>,
 }
 
+#[wasm_bindgen]
 impl LifeGame {
-    pub fn new(width: usize, heigh: usize) -> Self {
+    pub fn new(width: usize, height: usize) -> Self {
         Self {
-            field: vec![vec![Cell::Dead; heigh]; width],
+            width,
+            height,
+            field: vec![Cell::Dead; width * height],
         }
     }
 
-    pub fn with_field(field: Vec<Vec<Cell>>) -> Self {
-        Self { field }
+    pub fn fill_cells(&self, buf: &mut [u8]) -> bool {
+        if buf.len() < self.width * self.height {
+            return false;
+        }
+        self.field
+            .iter()
+            .enumerate()
+            .for_each(|(i, cell)| buf[i] = if *cell == Cell::Alive { 1 } else { 0 });
+        true
     }
 
-    pub fn set_cell(&mut self, x: usize, y: usize, val: Cell) -> Option<&Cell> {
+    pub fn set_cell(&mut self, x: usize, y: usize, val: Cell) -> bool {
         match self.cell_mut(x, y) {
             Some(cell) => {
-                *cell = val;
-                Some(cell)
+                *cell = val.clone();
+                true
             }
-            None => None,
+            None => false,
         }
     }
 
-    pub fn get_field(&self) -> &Vec<Vec<Cell>> {
-        &self.field
-    }
-
-    pub fn next(&mut self) -> &mut Self {
+    pub fn next(&mut self) {
         self.field = self.convert_field(|x, y, cell| match (cell, self.num_neighbor_alive(x, y)) {
             (Cell::Alive, 2) | (Cell::Alive, 3) | (Cell::Dead, 3) => Cell::Alive,
             _ => Cell::Dead,
         });
-        self
     }
 
     fn num_neighbor_alive(&self, x: usize, y: usize) -> usize {
@@ -70,33 +82,47 @@ impl LifeGame {
         .sum()
     }
 
-    fn convert_field<F>(&self, callback: F) -> Vec<Vec<Cell>>
+    fn convert_field<F>(&self, callback: F) -> Vec<Cell>
     where
         F: Fn(usize, usize, &Cell) -> Cell,
     {
         self.field
             .iter()
             .enumerate()
-            .map(|(y, row)| {
-                row.iter()
-                    .enumerate()
-                    .map(|(x, cell)| callback(x, y, cell))
-                    .collect()
-            })
+            .map(|(pos, cell)| callback(pos % self.width, pos / self.width, cell))
             .collect()
     }
 
     fn cell(&self, x: usize, y: usize) -> Option<&Cell> {
-        match self.field.get(y) {
-            Some(row) => row.get(x),
-            None => None,
+        if x >= self.width || y >= self.height {
+            None
+        } else {
+            self.field.get(x + self.width * y)
         }
     }
 
     fn cell_mut(&mut self, x: usize, y: usize) -> Option<&mut Cell> {
-        match self.field.get_mut(y) {
-            Some(row) => row.get_mut(x),
-            None => None,
+        if x >= self.width || y >= self.height {
+            None
+        } else {
+            self.field.get_mut(x + self.width * y)
         }
+    }
+}
+
+impl LifeGame {
+    pub fn with_field(field: Vec<Vec<Cell>>) -> Self {
+        Self {
+            width: field.get(0).unwrap().len(),
+            height: field.len(),
+            field: field.concat(),
+        }
+    }
+
+    pub fn get_field(&self) -> Vec<Vec<Cell>> {
+        self.field
+            .chunks(self.width)
+            .map(|row| row.to_vec())
+            .collect()
     }
 }

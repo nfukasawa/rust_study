@@ -35,9 +35,11 @@ fn test_lifegame() {
         // TODO: and more patterns...
     ];
 
-    for (field, next) in cases.iter() {
+    for (i, (field, next)) in cases.iter().enumerate() {
+        println!("{}", i);
         let mut g = game(field);
-        assert_eq!(game(next).get_field(), g.next().get_field());
+        g.next();
+        assert_eq!(game(next).get_field(), g.get_field());
     }
 }
 
