@@ -5,7 +5,18 @@ import './App.css';
 export function App(): React.ReactElement {
   const [width, height] = [100, 100];
   const interval = 200;
+
+  return (
+    <div className="App">
+      <LifeGameField width={width} height={height} interval={interval} />
+    </div>
+  );
+}
+
+function LifeGameField(props: { width: number, height: number, interval: number }): React.ReactElement {
+  const { width, height, interval } = props;
   const [field, setField] = React.useState<Uint8Array>(null as any);
+
 
   React.useEffect(() => {
     (async () => {
@@ -24,37 +35,29 @@ export function App(): React.ReactElement {
 
       setInterval(() => {
         game.next();
-
         const buf = new Uint8Array(width * height);
         game.fill_cells(buf);
         setField(buf);
       }, interval);
     })();
-  }, [width, height]);
+  }, [width, height, interval]);
 
-  return (
-    <div className="App">
-      <LifeGameField width={width} height={height} field={field} />
-    </div>
-  );
-}
-
-function LifeGameField(props: { width: number, height: number, field: Uint8Array }): React.ReactElement {
-  const { width, height, field } = props;
   if (!field) return null as any;
 
   return <Field>
-    {
-      Array.from(Array(height).keys()).map(y => (
-        <Row>
-          {
-            Array.from(Array(width).keys()).map(x => (
-              field[y * width + x] ? (<Alive />) : (<Dead />)
-            ))
-          }
-        </Row>
-      ))
-    }
+    <tbody>
+      {
+        Array.from(Array(height).keys()).map(y => (
+          <Row key={y}>
+            {
+              Array.from(Array(width).keys()).map(x => (
+                field[y * width + x] ? <Alive key={x} /> : <Dead key={x} />
+              ))
+            }
+          </Row>
+        ))
+      }
+    </tbody>
   </Field>
 }
 
@@ -66,16 +69,16 @@ const Field = styled.table`
 const Row = styled.tr`
 `;
 
-const Cell = styled.td`
+const CellElm = styled.td`
   width:3px;
   height:3px;
   padding:0;
 `
 
-const Alive = styled(Cell)`
+const Alive = styled(CellElm)`
   background-color: rgb(0,255,0);
 `;
 
-const Dead = styled(Cell)`
+const Dead = styled(CellElm)`
   background-color: rgb(255,0,255);
 `;
