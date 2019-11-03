@@ -7,7 +7,7 @@ pub enum Value {
     Boolean(bool),
     String(String),
     Array(Vec<Value>),
-    Object(HashMap<String, Value>),
+    Object(Box<HashMap<String, Value>>),
 }
 
 impl Value {

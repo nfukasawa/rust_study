@@ -18,7 +18,7 @@ macro_rules! value {
             $(
                 obj.insert(::std::string::ToString::to_string($key), $crate::value!($val));
             )*
-            $crate::Value::Object(obj)
+            $crate::Value::Object(Box::new(obj))
         }
     };
     ($val:expr) => {

@@ -26,7 +26,7 @@ impl<R: Reader> Parser<R> {
     fn parse_value(&mut self) -> Result<Value, Err> {
         match self.skip_spaces() {
             Some(b'"') => self.parse_string(),
-            c @ Some(b'0'...b'9') | c @ Some(b'-') => self.parse_number(c.unwrap()),
+            c @ Some(b'0'..=b'9') | c @ Some(b'-') => self.parse_number(c.unwrap()),
             Some(b'{') => self.parse_object(),
             Some(b'[') => self.parse_array(),
             Some(b't') => self.parse_true(),
@@ -89,9 +89,9 @@ impl<R: Reader> Parser<R> {
                 for b in bs {
                     n *= 16;
                     n += match b {
-                        b'0'...b'9' => b - b'0',
-                        b'A'...b'F' => b - b'A' + 10,
-                        b'a'...b'f' => b - b'a' + 10,
+                        b'0'..=b'9' => b - b'0',
+                        b'A'..=b'F' => b - b'A' + 10,
+                        b'a'..=b'f' => b - b'a' + 10,
                         _ => return Err(Err::new()),
                     } as u32;
                 }
@@ -119,7 +119,7 @@ impl<R: Reader> Parser<R> {
         let mut state = match first {
             b'-' => State::Minus,
             b'0' => State::Zero,
-            b'1'...b'9' => State::Integer,
+            b'1'..=b'9' => State::Integer,
             _ => panic!("invalid first byte."),
         };
 
@@ -129,7 +129,7 @@ impl<R: Reader> Parser<R> {
             state = match state {
                 State::Minus => match b {
                     b'0' => State::Zero,
-                    b'1'...b'9' => State::Integer,
+                    b'1'..=b'9' => State::Integer,
                     _ => break,
                 },
                 State::Zero => match b {
@@ -137,17 +137,17 @@ impl<R: Reader> Parser<R> {
                     _ => break,
                 },
                 State::Dot => match b {
-                    b'0'...b'9' => State::Fraction,
+                    b'0'..=b'9' => State::Fraction,
                     _ => break,
                 },
                 State::Integer => match b {
-                    b'0'...b'9' => State::Integer,
+                    b'0'..=b'9' => State::Integer,
                     b'.' => State::Fraction,
                     b'e' | b'E' => State::ExpSign,
                     _ => break,
                 },
                 State::Fraction => match b {
-                    b'0'...b'9' => State::Integer,
+                    b'0'..=b'9' => State::Integer,
                     b'e' | b'E' => State::ExpSign,
                     _ => break,
                 },
@@ -156,7 +156,7 @@ impl<R: Reader> Parser<R> {
                     _ => break,
                 },
                 State::Exp => match b {
-                    b'0'...b'9' => State::Exp,
+                    b'0'..=b'9' => State::Exp,
                     _ => break,
                 },
             };
@@ -191,7 +191,7 @@ impl<R: Reader> Parser<R> {
                 _ => return Err(Err::new()),
             }
         }
-        Ok(Value::Object(obj))
+        Ok(Value::Object(Box::new(obj)))
     }
 
     fn parse_array(&mut self) -> Result<Value, Err> {
