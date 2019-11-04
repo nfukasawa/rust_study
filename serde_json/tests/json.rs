@@ -21,5 +21,5 @@ fn test_hoge() {
         vec: vec!["hello".to_string()],
         fuga: Fuga {},
     };
-    println!("{:?}", hoge);
+    hoge.foo();
 }

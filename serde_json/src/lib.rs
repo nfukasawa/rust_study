@@ -2,35 +2,41 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::*;
+use syn::{parse_macro_input, DeriveInput};
 
 #[proc_macro_derive(Deserialize)]
 pub fn derive(input: TokenStream) -> TokenStream {
-    let ast = syn::parse_derive_input(&input.to_string()).unwrap();
+    let ast = syn::parse_macro_input!(input as DeriveInput);
 
-    let fields: Vec<(&syn::Ident, &syn::Ident)> = match ast.body {
-        syn::Body::Struct(ref vars) => vars
-            .fields()
+    let name = &ast.ident;
+    let fields: Vec<(&syn::Ident, &syn::Ident)> = match ast.data {
+        syn::Data::Struct(ref s) => s
+            .fields
             .iter()
             .filter_map(|field| match (&field.ident, type_ident(field)) {
                 (Some(name), Some(ty)) => Some((name, ty)),
                 _ => None,
             })
             .collect(),
-        syn::Body::Enum(_) => unreachable!(),
+        syn::Data::Enum(_) => unreachable!(),
+        syn::Data::Union(_) => unreachable!(),
     };
 
     println!("fields: {:?}", fields);
 
-    let output = quote! {
-        // TODO
+    let tokens = quote! {
+        impl #name {
+            fn foo(&self) {
+                println!("foo");
+            }
+        }
     };
-    output.into()
+    TokenStream::from(tokens)
 }
 
 fn type_ident(field: &syn::Field) -> Option<&syn::Ident> {
     match &field.ty {
-        syn::Ty::Path(_, p) => match p.segments.first() {
+        syn::Type::Path(p) => match p.path.segments.first() {
             Some(seg) => Some(&seg.ident),
             _ => None,
         },
