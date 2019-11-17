@@ -158,7 +158,6 @@ enum OptType {
 
 fn build_commands(cmds: &Vec<(String, Vec<OptType>)>) -> Vec<Cmd> {
     let mut ret = Vec::new();
-
     let mut i = 0;
     let n = cmds.len();
     for (cmd, opts) in cmds {
@@ -173,11 +172,10 @@ fn build_commands(cmds: &Vec<(String, Vec<OptType>)>) -> Vec<Cmd> {
         if i != 0 {
             c.set_input(IO::Pipe);
         }
-        if n != 1 && i != n - 1 {
+        if i != n - 1 {
             c.set_output(IO::Pipe);
         }
         ret.push(c);
-
         i += 1;
     }
     ret
