@@ -3,14 +3,10 @@ use std::io::prelude::*;
 use std::process::{Child, Command, Stdio};
 
 fn main() -> io::Result<()> {
-    let stdin = io::stdin();
-    let stdin = stdin.lock();
-
-    let mut reader = Reader::new(stdin);
+    let mut reader = Reader::new();
     while let Some(cmds) = reader.cmds() {
         cmds.exec()?;
     }
-
     Ok(())
 }
 
@@ -18,12 +14,13 @@ fn main() -> io::Result<()> {
 struct Commands {
     cmds: Vec<Cmd>,
 }
+
 impl Commands {
     pub fn new(cmds: Vec<Cmd>) -> Self {
         Commands { cmds }
     }
 
-    pub fn exec(self) -> io::Result<()> {
+    pub fn exec(&self) -> io::Result<()> {
         let mut children = self
             .cmds
             .iter()
@@ -54,6 +51,7 @@ struct Cmd {
     input: IO,
     output: IO,
 }
+
 impl Cmd {
     pub fn new(cmd: &str) -> Self {
         Self {
@@ -113,20 +111,21 @@ impl IO {
     }
 }
 
-struct Reader<R: BufRead> {
-    reader: R,
-}
-impl<R: BufRead> Reader<R> {
-    pub fn new(reader: R) -> Self {
-        Reader { reader }
+struct Reader {}
+impl Reader {
+    pub fn new() -> Self {
+        Reader {}
     }
 
     pub fn cmds(&mut self) -> Option<Commands> {
+        let stdin = io::stdin();
+        let mut stdin = stdin.lock();
+
         let mut line = String::new();
         self.prompt().expect("io error");
 
         // TODO: multi line
-        if let Some(cmds) = match self.reader.read_line(&mut line) {
+        if let Some(cmds) = match stdin.read_line(&mut line) {
             Ok(_) => Some(self.parse_line(&line)),
             Err(_) => None,
         } {
