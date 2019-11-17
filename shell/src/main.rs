@@ -1,3 +1,4 @@
+use peg::parser;
 use std::fs::File;
 use std::io;
 use std::io::prelude::*;
@@ -5,14 +6,16 @@ use std::process::{Child, Command, Stdio};
 
 fn main() -> io::Result<()> {
     let mut reader = Reader::new();
-    while let Some(cmds) = reader.commands() {
-        cmds.exec()?;
+    loop {
+        match reader.commands() {
+            Some(cmds) => cmds.exec()?,
+            None => (),
+        }
     }
-    Ok(())
 }
 
 #[derive(Debug, Clone)]
-struct Commands {
+pub struct Commands {
     cmds: Vec<Cmd>,
 }
 
@@ -43,7 +46,7 @@ impl Commands {
 }
 
 #[derive(Debug, Clone)]
-struct Cmd {
+pub struct Cmd {
     cmd: String,
     opts: Vec<String>,
     input: IO,
@@ -51,9 +54,9 @@ struct Cmd {
 }
 
 impl Cmd {
-    pub fn new(cmd: &str) -> Self {
+    pub fn new<S: Into<String>>(cmd: S) -> Self {
         Self {
-            cmd: cmd.to_string(),
+            cmd: cmd.into(),
             opts: Vec::new(),
             input: IO::Std,
             output: IO::Std,
@@ -70,8 +73,8 @@ impl Cmd {
             .spawn()?)
     }
 
-    pub fn add_opt(&mut self, opt: &str) {
-        self.opts.push(opt.to_string());
+    pub fn add_opt<S: Into<String>>(&mut self, opt: S) {
+        self.opts.push(opt.into());
     }
     pub fn set_input(&mut self, input: IO) {
         self.input = input;
@@ -82,30 +85,30 @@ impl Cmd {
 }
 
 #[derive(Debug, Clone)]
-enum IO {
+pub enum IO {
     Std,
     Pipe,
     Redirect(String),
 }
 
 impl IO {
-    pub fn redirect(file: &str) -> IO {
-        IO::Redirect(file.to_string())
+    pub fn redirect<S: Into<String>>(file: S) -> IO {
+        IO::Redirect(file.into())
     }
 
     pub fn stdin(&self) -> Result<Stdio, io::Error> {
         match self {
+            IO::Std => Ok(Stdio::inherit()),
             IO::Pipe => Ok(Stdio::piped()),
             IO::Redirect(file) => Ok(Stdio::from(File::open(file)?)),
-            _ => Ok(Stdio::inherit()),
         }
     }
 
     pub fn stdout(&self) -> Result<Stdio, io::Error> {
         match self {
+            IO::Std => Ok(Stdio::inherit()),
             IO::Pipe => Ok(Stdio::piped()),
             IO::Redirect(file) => Ok(Stdio::from(File::create(file)?)),
-            _ => Ok(Stdio::inherit()),
         }
     }
 }
@@ -125,7 +128,7 @@ impl Reader {
 
         // TODO: multi line
         if let Some(cmds) = match stdin.read_line(&mut line) {
-            Ok(_) => Some(self.parse_line(&line)),
+            Ok(_) => self.parse_line(&line),
             Err(_) => None,
         } {
             Some(Commands::new(cmds))
@@ -134,48 +137,72 @@ impl Reader {
         }
     }
 
-    fn parse_line(&self, line: &String) -> Vec<Cmd> {
-        // TODO: use perser combinator ?
-        // TODO: parse quotes, etc...
-        let mut iter = line.split_ascii_whitespace();
-
-        let mut cmds = Vec::new();
-        let mut pipe = false;
-
-        while let Some(token) = iter.next() {
-            let mut cmd = Cmd::new(token);
-            if pipe {
-                cmd.set_input(IO::Pipe);
-                pipe = false;
-            }
-
-            while let Some(token) = iter.next() {
-                match token {
-                    "|" => {
-                        cmd.set_output(IO::Pipe);
-                        pipe = true;
-                        break;
-                    }
-                    ">" => match iter.next() {
-                        Some(file) => {
-                            cmd.set_output(IO::redirect(file));
-                            break;
-                        }
-                        None => {} // TODO
-                    },
-                    "<" => match iter.next() {
-                        Some(file) => cmd.set_input(IO::redirect(file)),
-                        None => {} // TODO
-                    },
-                    _ => cmd.add_opt(token),
-                }
-            }
-            cmds.push(cmd);
+    fn parse_line(&self, line: &String) -> Option<Vec<Cmd>> {
+        match shell::commands(line) {
+            Ok(cmds) => Some(cmds),
+            Err(_) => None,
         }
-        return cmds;
     }
 
     fn prompt(&self) -> io::Result<()> {
         write!(io::stderr().lock(), "> ")
+    }
+}
+
+#[derive(Debug, Clone)]
+enum OptType {
+    Opt(String),
+    RedirectIn(String),
+    RedirectOut(String),
+}
+
+fn build_commands(cmds: &Vec<(String, Vec<OptType>)>) -> Vec<Cmd> {
+    let mut ret = Vec::new();
+
+    let mut i = 0;
+    let n = cmds.len();
+    for (cmd, opts) in cmds {
+        let mut c = Cmd::new(cmd);
+        for opt in opts {
+            match opt {
+                OptType::Opt(opt) => c.add_opt(opt),
+                OptType::RedirectIn(file) => c.set_input(IO::redirect(file)),
+                OptType::RedirectOut(file) => c.set_output(IO::redirect(file)),
+            }
+        }
+        if i != 0 {
+            c.set_input(IO::Pipe);
+        }
+        if n != 1 && i != n - 1 {
+            c.set_output(IO::Pipe);
+        }
+        ret.push(c);
+
+        i += 1;
+    }
+    ret
+}
+
+parser! {
+    grammar shell() for str {
+        pub rule commands() -> Vec<Cmd>
+          = cmds:command() ** ("|") { build_commands(&cmds) }
+
+        rule command() -> (String, Vec<OptType>)
+          = _ cmd:token() opts:(option() / redirect_out() / redirect_in())* _ { (cmd, opts)}
+
+        rule option() -> OptType
+          = _ opt:token() _ { OptType::Opt(opt) }
+
+        rule redirect_in() -> OptType
+          = _ "<" _ file:token() _ { OptType::RedirectIn(file) }
+
+        rule redirect_out() -> OptType
+          = _ ">" _ file:token() _ { OptType::RedirectOut(file) }
+
+        rule token() -> String
+            = t:$((!['<' | '>' | '|' | ' ' | '"' | '\'' | ' ' | '\t' | '\n'] [_])+) { t.into() }
+
+        rule _() = [' ' | '\t' | '\n']*
     }
 }
