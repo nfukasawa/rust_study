@@ -1,10 +1,11 @@
+use std::fs::File;
 use std::io;
 use std::io::prelude::*;
 use std::process::{Child, Command, Stdio};
 
 fn main() -> io::Result<()> {
     let mut reader = Reader::new();
-    while let Some(cmds) = reader.cmds() {
+    while let Some(cmds) = reader.commands() {
         cmds.exec()?;
     }
     Ok(())
@@ -21,20 +22,17 @@ impl Commands {
     }
 
     pub fn exec(&self) -> io::Result<()> {
-        let mut children = self
-            .cmds
-            .iter()
-            .map(|cmd| cmd.process())
-            .collect::<Vec<Child>>();
+        let mut children = Vec::new();
+        for cmd in &self.cmds {
+            children.push(cmd.process()?);
+        }
 
         let mut i = 1;
         while i < children.len() {
             let (c1, c2) = children.split_at_mut(i);
-            io::copy(
-                c1[i - 1].stdout.as_mut().unwrap(),
-                c2[0].stdin.as_mut().unwrap(),
-            )
-            .unwrap();
+            let pipe_out = c1[i - 1].stdout.as_mut().unwrap();
+            let pipe_in = c2[0].stdin.as_mut().unwrap();
+            io::copy(pipe_out, pipe_in)?;
             i += 1;
         }
         for mut child in children {
@@ -62,13 +60,14 @@ impl Cmd {
         }
     }
 
-    pub fn process(&self) -> Child {
-        Command::new(&self.cmd)
+    pub fn process(&self) -> Result<Child, io::Error> {
+        let stdin = self.input.stdin()?;
+        let stdout = self.output.stdout()?;
+        Ok(Command::new(&self.cmd)
             .args(&self.opts)
-            .stdin(self.input.stdin())
-            .stdout(self.output.stdout())
-            .spawn()
-            .expect("failed to run process") // TODO: error
+            .stdin(stdin)
+            .stdout(stdout)
+            .spawn()?)
     }
 
     pub fn add_opt(&mut self, opt: &str) {
@@ -94,19 +93,19 @@ impl IO {
         IO::Redirect(file.to_string())
     }
 
-    pub fn stdin(&self) -> Stdio {
+    pub fn stdin(&self) -> Result<Stdio, io::Error> {
         match self {
-            IO::Pipe => Stdio::piped(),
-            IO::Redirect(file) => Stdio::inherit(), // TODO
-            _ => Stdio::inherit(),
+            IO::Pipe => Ok(Stdio::piped()),
+            IO::Redirect(file) => Ok(Stdio::from(File::open(file)?)),
+            _ => Ok(Stdio::inherit()),
         }
     }
 
-    pub fn stdout(&self) -> Stdio {
+    pub fn stdout(&self) -> Result<Stdio, io::Error> {
         match self {
-            IO::Pipe => Stdio::piped(),
-            IO::Redirect(file) => Stdio::inherit(), // TODO
-            _ => Stdio::inherit(),
+            IO::Pipe => Ok(Stdio::piped()),
+            IO::Redirect(file) => Ok(Stdio::from(File::create(file)?)),
+            _ => Ok(Stdio::inherit()),
         }
     }
 }
@@ -117,7 +116,7 @@ impl Reader {
         Reader {}
     }
 
-    pub fn cmds(&mut self) -> Option<Commands> {
+    pub fn commands(&mut self) -> Option<Commands> {
         let stdin = io::stdin();
         let mut stdin = stdin.lock();
 
