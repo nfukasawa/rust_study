@@ -27,7 +27,13 @@ impl Commands {
     pub fn exec(&self) -> io::Result<()> {
         let mut children = Vec::new();
         for cmd in &self.cmds {
-            children.push(cmd.process()?);
+            match cmd.process() {
+                Ok(child) => children.push(child),
+                Err(err) => {
+                    let stderr = io::stderr();
+                    writeln!(stderr.lock(), "{}", err)?;
+                }
+            }
         }
 
         let mut i = 1;
@@ -38,6 +44,7 @@ impl Commands {
             io::copy(pipe_out, pipe_in)?;
             i += 1;
         }
+
         for mut child in children {
             child.wait()?;
         }
@@ -181,6 +188,7 @@ fn build_commands(cmds: &Vec<(String, Vec<OptType>)>) -> Vec<Cmd> {
     ret
 }
 
+// TODO: quoted, etc...
 parser! {
     grammar shell() for str {
         pub rule commands() -> Vec<Cmd>
@@ -199,7 +207,7 @@ parser! {
           = _ ">" _ file:token() _ { OptType::RedirectOut(file) }
 
         rule token() -> String
-            = t:$((!['<' | '>' | '|' | ' ' | '"' | '\'' | ' ' | '\t' | '\n'] [_])+) { t.into() }
+            = t:$((!['<' | '>' | '|' | ' ' | '"' | '\'' | '\t' | '\n'] [_])+) { t.into() }
 
         rule _() = [' ' | '\t' | '\n']*
     }
