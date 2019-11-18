@@ -68,12 +68,10 @@ impl Cmd {
     }
 
     pub fn process(&self) -> Result<Child, io::Error> {
-        let stdin = self.input.stdin()?;
-        let stdout = self.output.stdout()?;
         Ok(Command::new(&self.cmd)
             .args(&self.opts)
-            .stdin(stdin)
-            .stdout(stdout)
+            .stdin(self.input.stdin()?)
+            .stdout(self.output.stdout()?)
             .spawn()?)
     }
 
@@ -127,10 +125,10 @@ impl Reader {
         let stdin = io::stdin();
         let mut stdin = stdin.lock();
 
-        let mut line = String::new();
-        self.prompt().expect("io error");
+        self.prompt();
 
         // TODO: multi line
+        let mut line = String::new();
         if let Some(cmds) = match stdin.read_line(&mut line) {
             Ok(_) => self.parse_line(&line),
             Err(_) => None,
@@ -148,8 +146,8 @@ impl Reader {
         }
     }
 
-    fn prompt(&self) -> io::Result<()> {
-        write!(io::stderr().lock(), "> ")
+    fn prompt(&self) {
+        write!(io::stderr().lock(), "> ").expect("io error");
     }
 }
 
