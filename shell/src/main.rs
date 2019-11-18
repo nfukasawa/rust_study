@@ -36,17 +36,14 @@ impl Commands {
             }
         }
 
-        let mut i = 1;
-        while i < children.len() {
-            let (c1, c2) = children.split_at_mut(i);
-            let pipe_out = c1[i - 1].stdout.as_mut().unwrap();
-            let pipe_in = c2[0].stdin.as_mut().unwrap();
-            io::copy(pipe_out, pipe_in)?;
-            i += 1;
-        }
-
-        for mut child in children {
-            child.wait()?;
+        for i in 0..children.len() {
+            if i != 0 {
+                let (c1, c2) = children.split_at_mut(i);
+                let pipe_out = c1[i - 1].stdout.as_mut().unwrap();
+                let pipe_in = c2[0].stdin.as_mut().unwrap();
+                io::copy(pipe_out, pipe_in)?;
+            }
+            children[i].wait()?;
         }
         Ok(())
     }
