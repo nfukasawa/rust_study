@@ -33,29 +33,38 @@ impl CounterTask {
 }
 
 #[derive(Clone)]
+struct LatchCounter {
+    count: usize,
+    current: usize,
+}
+
+#[derive(Clone)]
 struct LatchTask {
-    state: Arc<(Mutex<(usize, usize)>, Condvar)>,
+    state: Arc<(Mutex<LatchCounter>, Condvar)>,
 }
 
 impl LatchTask {
     pub fn new(count: usize) -> Self {
         Self {
-            state: Arc::new((Mutex::new((count, 0)), Condvar::new())),
+            state: Arc::new((
+                Mutex::new(LatchCounter { count, current: 0 }),
+                Condvar::new(),
+            )),
         }
     }
     pub fn run(&self) {
         let (val, condvar) = &*self.state;
         let mut val = val.lock().unwrap();
-        val.1 += 1;
+        val.current += 1;
         condvar.notify_all();
-        while val.1 < val.0 {
+        while val.current < val.count {
             val = condvar.wait(val).unwrap();
         }
     }
     pub fn wait_for_latch_count(&self) {
         let (val, condvar) = &*self.state;
         let mut val = val.lock().unwrap();
-        while val.1 < val.0 {
+        while val.current < val.count {
             val = condvar.wait(val).unwrap();
         }
     }
