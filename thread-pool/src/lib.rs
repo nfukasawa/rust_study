@@ -18,8 +18,8 @@ impl ThreadPool {
         let mut workers = Vec::with_capacity(number_of_threads);
         let (sender, receiver) = mpsc::sync_channel(queue_size);
         let receiver = Arc::new(Mutex::new(receiver));
-        for id in 0..number_of_threads {
-            workers.push(Worker::new(id, Arc::clone(&receiver)));
+        for _ in 0..number_of_threads {
+            workers.push(Worker::new(Arc::clone(&receiver)));
         }
         Self { workers, sender }
     }
@@ -52,18 +52,12 @@ struct Worker {
 }
 
 impl Worker {
-    fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Msg>>>) -> Worker {
+    fn new(receiver: Arc<Mutex<mpsc::Receiver<Msg>>>) -> Worker {
         let thread = thread::spawn(move || loop {
             let msg = receiver.lock().unwrap().recv().unwrap();
             match msg {
-                Msg::Dispatch(job) => {
-                    println!("worker {} got a job: ", id);
-                    job.call_box();
-                }
-                Msg::Stop => {
-                    println!("worker {} stoped: ", id);
-                    break;
-                }
+                Msg::Dispatch(job) => job.call_box(),
+                Msg::Stop => break,
             }
         });
         Self {

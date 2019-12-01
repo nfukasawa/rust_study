@@ -77,8 +77,10 @@ fn test_constructor_illegal_argument_second() {
 fn test_simple_dispatch() {
     let pool = ThreadPool::new(1, 1);
     let task = CounterTask::new();
-    let task2 = task.clone();
-    pool.dispatch(move || task2.run()).unwrap();
+    {
+        let task = task.clone();
+        pool.dispatch(move || task.run()).unwrap();
+    }
     task.wait_for_run_count(1);
 }
 
