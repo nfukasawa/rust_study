@@ -1,5 +1,8 @@
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::sync::{Condvar, Mutex};
+use std::thread;
+use std::time::Duration;
 use threadpool::ThreadPool;
 
 #[derive(Clone)]
@@ -148,4 +151,23 @@ fn test_latch_complex_dispatch() {
     tasks.iter().for_each(|task| {
         task.wait_for_latch_count();
     });
+}
+
+#[test]
+fn test_number_of_threads() {
+    let number_of_threads = 10;
+    let threads = Arc::new(Mutex::new(HashSet::new()));
+    {
+        let pool = ThreadPool::new(10, number_of_threads);
+        for _ in 0..number_of_threads * 3 {
+            let threads = threads.clone();
+            pool.dispatch(move || {
+                let mut threads = threads.lock().unwrap();
+                threads.insert(thread::current().id());
+                thread::sleep(Duration::from_millis(500));
+            })
+            .unwrap();
+        }
+    }
+    assert_eq!(number_of_threads, threads.lock().unwrap().len());
 }
