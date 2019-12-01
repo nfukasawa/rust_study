@@ -3,7 +3,7 @@ use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-pub type ThreadPoolResult = Result<(), Box<dyn Error>>;
+pub type ThreadPoolError = Box<dyn Error>;
 
 pub struct ThreadPool {
     workers: Vec<Worker>,
@@ -12,6 +12,9 @@ pub struct ThreadPool {
 
 impl ThreadPool {
     pub fn new(queue_size: usize, number_of_threads: usize) -> Self {
+        assert_ne!(queue_size, 0);
+        assert_ne!(number_of_threads, 0);
+
         let mut workers = Vec::with_capacity(number_of_threads);
         let (sender, receiver) = mpsc::sync_channel(queue_size);
         let receiver = Arc::new(Mutex::new(receiver));
@@ -21,14 +24,14 @@ impl ThreadPool {
         Self { workers, sender }
     }
 
-    pub fn dispatch<F>(&self, f: F) -> ThreadPoolResult
+    pub fn dispatch<F>(&self, f: F) -> Result<(), ThreadPoolError>
     where
         F: FnOnce() + Send + 'static,
     {
         let job = Box::new(f);
         match self.sender.send(Msg::Dispatch(job)) {
-            Err(err) => Result::Err(Box::new(err)),
-            _ => Result::Ok(()),
+            Err(err) => Err(Box::new(err)),
+            _ => Ok(()),
         }
     }
 }
