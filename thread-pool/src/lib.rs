@@ -7,7 +7,7 @@ pub type ThreadPoolError = Box<dyn Error>;
 
 pub struct ThreadPool {
     workers: Vec<Worker>,
-    sender: mpsc::SyncSender<Msg>,
+    sender: mpsc::SyncSender<Message>,
 }
 
 impl ThreadPool {
@@ -29,7 +29,7 @@ impl ThreadPool {
         F: FnOnce() + Send + 'static,
     {
         let job = Box::new(f);
-        match self.sender.send(Msg::Dispatch(job)) {
+        match self.sender.send(Message::Dispatch(job)) {
             Err(err) => Err(Box::new(err)),
             _ => Ok(()),
         }
@@ -39,7 +39,7 @@ impl ThreadPool {
 impl Drop for ThreadPool {
     fn drop(&mut self) {
         for _ in 0..self.workers.len() {
-            self.sender.send(Msg::Stop).unwrap();
+            self.sender.send(Message::Terminate).unwrap();
         }
         while let Some(worker) = self.workers.pop() {
             worker.join();
@@ -52,12 +52,12 @@ struct Worker {
 }
 
 impl Worker {
-    fn new(receiver: Arc<Mutex<mpsc::Receiver<Msg>>>) -> Worker {
+    fn new(receiver: Arc<Mutex<mpsc::Receiver<Message>>>) -> Worker {
         let thread = thread::spawn(move || loop {
             let msg = receiver.lock().unwrap().recv().unwrap();
             match msg {
-                Msg::Dispatch(job) => job.call_box(),
-                Msg::Stop => break,
+                Message::Dispatch(job) => job.call_box(),
+                Message::Terminate => break,
             }
         });
         Self { thread }
@@ -68,9 +68,9 @@ impl Worker {
     }
 }
 
-enum Msg {
+enum Message {
     Dispatch(Job),
-    Stop,
+    Terminate,
 }
 
 type Job = Box<dyn FnBox + Send + 'static>;
