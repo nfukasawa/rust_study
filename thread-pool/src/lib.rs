@@ -41,14 +41,14 @@ impl Drop for ThreadPool {
         for _ in 0..self.workers.len() {
             self.sender.send(Msg::Stop).unwrap();
         }
-        for worker in &mut self.workers {
+        while let Some(worker) = self.workers.pop() {
             worker.join();
         }
     }
 }
 
 struct Worker {
-    thread: Option<thread::JoinHandle<()>>,
+    thread: thread::JoinHandle<()>,
 }
 
 impl Worker {
@@ -60,15 +60,11 @@ impl Worker {
                 Msg::Stop => break,
             }
         });
-        Self {
-            thread: Some(thread),
-        }
+        Self { thread }
     }
 
-    fn join(&mut self) {
-        if let Some(thread) = self.thread.take() {
-            thread.join().unwrap();
-        }
+    fn join(self) {
+        self.thread.join().unwrap();
     }
 }
 
