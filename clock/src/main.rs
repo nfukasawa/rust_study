@@ -1,4 +1,4 @@
-use chrono::{Datelike, Local, Timelike};
+use chrono::Local;
 use std::time::{Duration, Instant};
 use tokio::prelude::*;
 use tokio::timer::Interval;
@@ -13,20 +13,8 @@ fn main() {
             .for_each(move |_| {
                 let now = Local::now();
                 term.clear_screen().unwrap();
-                term.write_line(
-                    format!(
-                        "{}-{:02}-{:02} ({}) {:02}:{:02}:{:02}",
-                        now.year(),
-                        now.month(),
-                        now.day(),
-                        now.weekday(),
-                        now.hour(),
-                        now.minute(),
-                        now.second()
-                    )
-                    .as_str(),
-                )
-                .unwrap();
+                term.write_line(now.format("%F (%a) %T").to_string().as_str())
+                    .unwrap();
                 Ok(())
             })
             .map_err(|e| panic!("error: {:?}", e)),
